@@ -193,5 +193,5 @@ def load_features(tp: str):
 
 
 if __name__ == '__main__':
-    df = load_features('train')
-    print(df.info())
+    df = load_csi_train()
+    print(df.columns)
