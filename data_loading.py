@@ -84,7 +84,7 @@ def load_csi_train():
                          'CSI': np.uint8,
                          'CONTACT_DATE': str
                      })
-    df['CONTACT_DATE'] = pd.to_datetime(df['CONTACT_DATE'],
+    df['CONTACT_DATE'] = pd.to_datetime(df['CONTACT_DATE'] + '.2002',
                                         dayfirst=True,
                                         format='%d.%m',
                                         infer_datetime_format=True,
@@ -163,35 +163,24 @@ def load_features(tp: str):
                                       format='%d.%m.%y',
                                       infer_datetime_format=True,
                                       cache=True)
-
+    df['ARPU_GROUP'] = df['ARPU_GROUP'].fillna(0).astype(np.uint8)
+    df['COM_CAT#8'] = df['COM_CAT#8'].fillna(0).astype(np.uint16)
+    df['DEVICE_TYPE_ID'] = df['DEVICE_TYPE_ID'].fillna(0).astype(np.uint8)
+    df['INTERNET_TYPE_ID'] = df['INTERNET_TYPE_ID'].fillna(0).astype(np.uint8)
+    df['COM_CAT#34'] = df['COM_CAT#34'].fillna(0).astype(np.uint8)
     return df
 
 
-# def load_train():
-#     print('loading all train')
-#     if os.path.exists(os.path.join(CACHE_DIR, 'train_all.feather')):
-#         train = pd.read_feather(os.path.join(CACHE_DIR, 'train_all.feather'))
-#     else:
-#         train = pd.read_csv(os.path.join(INPUT_DIR, 'train.csv.zip'),
-#                             parse_dates=['attributed_time', 'click_time'],
-#                             dtype=dtypes)
-#         train['is_attributed'] = train['is_attributed'].fillna(0).astype('uint8')
-#         train['att_delta'] = (train['attributed_time'] - train['click_time']) \
-#             .dt \
-#             .total_seconds() \
-#             .fillna(0.0) \
-#             .astype('uint32')
-#         del train['attributed_time']
-#         train.dropna(subset=['click_time'], axis=0, how='any', inplace=True)
-#         dt = train['click_time'].dt
-#         train['day'] = dt.day.astype('uint8')
-#         train['hour'] = dt.hour.astype('uint8')
-#         del dt
-#         print(train.info(verbose=True, memory_usage=True, null_counts=True))
-#         train.to_feather(os.path.join(CACHE_DIR, 'train_all.feather'))
-#     return train
-
-
 if __name__ == '__main__':
-    df = load_features('train')
-    print(df.info())
+    train_df = load_consumption('train')
+    test_df = load_consumption('test')
+    print(train_df.info())
+    print(test_df.info())
+
+    field = 'MON'
+    train_vc = train_df[field].value_counts()
+    test_vc = test_df[field].value_counts()
+    print(train_vc)
+    print(test_vc)
+    print('Not in test', set(train_vc.index) - set(test_vc.index))
+    print('Not in train', set(test_vc.index) - set(train_vc.index))
