@@ -172,12 +172,11 @@ def load_features(tp: str):
 
 
 if __name__ == '__main__':
-    train_df = load_consumption('train')
-    test_df = load_consumption('test')
-    print(train_df.info())
+    train_df = load_features('train')
+    test_df = load_features('test')
     print(test_df.info())
 
-    field = 'MON'
+    field = 'RENT_CHANNEL'
     train_vc = train_df[field].value_counts()
     test_vc = test_df[field].value_counts()
     print(train_vc)
