@@ -38,7 +38,7 @@ search_spaces = {'subset__' + f: [True] for f in features}
 #     'estimator__C': (0.01, 1.0, 'log-uniform'),
 # })
 search_spaces.update({
-    'estimator__num_leaves': [15],
+    'estimator__num_leaves': [13],
     'estimator__max_depth': [-1],
     'estimator__min_child_samples': (10, 150),
     'estimator__max_bin': (100, 250),
@@ -365,7 +365,7 @@ if __name__ == '__main__':
         cv=RepeatedStratifiedKFold(4, 3, random_state=42),
         n_jobs=1,
         pre_dispatch=4,
-        n_iter=20,
+        n_iter=100,
         verbose=0,
         refit=True,
         random_state=42,
@@ -435,11 +435,11 @@ if __name__ == '__main__':
     test_X = test_df.drop(['CONTACT_DATE', 'SNAP_DATE'], axis=1)
 
     adv_auc = 0
-    adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X, train_y, test_X, topK=1000)
-    bayes_cv_tuner._fit_best_model(adv_train_x, adv_train_y)
-    adv_pred_y = bayes_cv_tuner.predict_proba(adv_test_x)[:, 1]
-    adv_auc = roc_auc_score(adv_test_y, adv_pred_y)
-    print(f'Adversial AUC = {adv_auc} by {len(adv_test_y)} samples')
+    # adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X, train_y, test_X, topK=1000)
+    # bayes_cv_tuner._fit_best_model(adv_train_x, adv_train_y)
+    # adv_pred_y = bayes_cv_tuner.predict_proba(adv_test_x)[:, 1]
+    # adv_auc = roc_auc_score(adv_test_y, adv_pred_y)
+    # print(f'Adversial AUC = {adv_auc} by {len(adv_test_y)} samples')
 
     bayes_cv_tuner._fit_best_model(train_X, train_y)
     test_y = bayes_cv_tuner.predict_proba(test_X)
