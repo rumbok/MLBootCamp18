@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 
 from data_loading import load_csi_test, load_csi_train, load_features
-from data_prepare import merge_features, add_weekday, add_holidays
+from data_prepare import add_features, add_weekday, add_holidays
 from transformers.pandas_select import PandasSelect
 from transformers.pandas_subset import PandasSubset
 
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     train_df = load_csi_train()
     train_feat_df = load_features('train')
 
-    train_df = merge_features(train_df, train_feat_df)
+    train_df = add_features(train_df, train_feat_df)
     train_df = add_weekday(train_df, 'CONTACT_DATE')
     train_df = add_holidays(train_df, 'CONTACT_DATE')
     print(train_df.head())
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     test_df = load_csi_test()
     test_feat_df = load_features('test')
 
-    test_df = merge_features(test_df, test_feat_df)
+    test_df = add_features(test_df, test_feat_df)
     test_df = add_weekday(test_df, 'CONTACT_DATE')
     test_df = add_holidays(test_df, 'CONTACT_DATE')
     test_X = test_df.drop(['CONTACT_DATE', 'SNAP_DATE'], axis=1)

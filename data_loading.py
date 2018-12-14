@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import os
 
-from data_prepare import merge_features
 
 TRAIN_DIR = './dataset/train'
 TEST_DIR = './dataset/test'
@@ -34,7 +33,7 @@ def load_consumption(tp: str):
                                format='%d.%m.%Y',
                                infer_datetime_format=True,
                                cache=True)
-    df['MON'] = df['MON'] - pd.DateOffset(months=2)
+    # df['MON'] = df['MON'] - pd.DateOffset(months=2)
     return df
 
 
@@ -57,7 +56,7 @@ def load_data_session(tp: str):
                                       format='%d.%m %H:%M:%S %Y',
                                       infer_datetime_format=True,
                                       cache=True)
-    df['START_TIME'] = df['START_TIME'] - pd.DateOffset(months=2)
+    # df['START_TIME'] = df['START_TIME'] - pd.DateOffset(months=2)
     return df
 
 
@@ -80,7 +79,7 @@ def load_voice_session(tp: str):
                                       format='%d.%m %H:%M:%S %Y',
                                       infer_datetime_format=True,
                                       cache=True)
-    df['START_TIME'] = df['START_TIME'] - pd.DateOffset(months=2)
+    # df['START_TIME'] = df['START_TIME'] - pd.DateOffset(months=2)
     return df
 
 
@@ -97,7 +96,7 @@ def load_csi_train():
                                         format='%d.%m',
                                         infer_datetime_format=True,
                                         cache=True)
-    df['CONTACT_DATE'] = df['CONTACT_DATE'].apply(lambda dt: dt.replace(month=3) if dt.month == 5 else dt.replace(month=2))
+    # df['CONTACT_DATE'] = df['CONTACT_DATE'].apply(lambda dt: dt.replace(month=3) if dt.month == 5 else dt.replace(month=2))
 
     return df
 
@@ -114,7 +113,7 @@ def load_csi_test():
                                         format='%d.%m.%Y',
                                         infer_datetime_format=True,
                                         cache=True)
-    df['CONTACT_DATE'] = df['CONTACT_DATE'].apply(lambda dt: dt.replace(month=3) if dt.month == 5 else dt.replace(month=2))
+    # df['CONTACT_DATE'] = df['CONTACT_DATE'].apply(lambda dt: dt.replace(month=3) if dt.month == 5 else dt.replace(month=2))
 
     return df
 
@@ -172,14 +171,14 @@ def load_features(tp: str):
                                      cache=True)
     df['SNAP_DATE'] = df['SNAP_DATE']\
         .apply(lambda dt: dt.replace(year=2018) if dt.year == 2002 else dt.replace(year=2017))
-    df['SNAP_DATE'] = df['SNAP_DATE'] - pd.DateOffset(months=2)
+    # df['SNAP_DATE'] = df['SNAP_DATE'] - pd.DateOffset(months=2)
 
     df['COM_CAT#24'] = pd.to_datetime(df['COM_CAT#24'] + '.' + PREV_YEAR,
                                       dayfirst=True,
                                       format='%d.%m.%y',
                                       infer_datetime_format=True,
                                       cache=True)
-    df['COM_CAT#24'] = df['COM_CAT#24'] - pd.DateOffset(months=2)
+    # df['COM_CAT#24'] = df['COM_CAT#24'] - pd.DateOffset(months=2)
 
     df['ARPU_GROUP'] = df['ARPU_GROUP'].fillna(0).astype(np.uint8)
     df['COM_CAT#8'] = df['COM_CAT#8'].fillna(0).astype(np.uint16)
@@ -193,53 +192,10 @@ def load_features(tp: str):
 
 def load_avg_kpi():
     if os.path.isfile(os.path.join(CACHE_DIR, 'bs_avg_kpi.feather')):
-        df = pd.read_feather(os.path.join(CACHE_DIR, 'bs_avg_kpi.feather')) \
-            .astype(dtype=
-                    {'T_DATE': str,
-                     'CELL_LAC_ID': np.uint32,
-                     'CELL_AVAILABILITY_2G': np.float16,
-                     'CELL_AVAILABILITY_3G': np.float16,
-                     'CELL_AVAILABILITY_4G': np.float16,
-                     'CSSR_2G': np.float16,
-                     'CSSR_3G': np.float16,
-                     'ERAB_PS_BLOCKING_RATE_LTE': np.float16,
-                     'ERAB_PS_BLOCKING_RATE_PLMN_LTE': np.float16,
-                     'ERAB_PS_DROP_RATE_LTE': np.float16,
-                     'HSPDSCH_CODE_UTIL_3G': np.float16,
-                     'NODEB_CNBAP_LOAD_HARDWARE': np.float16,
-                     'PART_CQI_QPSK_LTE': np.float16,
-                     'PART_MCS_QPSK_LTE': np.float16,
-                     'PROC_LOAD_3G': np.float16,
-                     'PSSR_2G': np.float16,
-                     'PSSR_3G': np.float16,
-                     'PSSR_LTE': np.float16,
-                     'RAB_CS_BLOCKING_RATE_3G': np.float16,
-                     'RAB_CS_DROP_RATE_3G': np.float16,
-                     'RAB_PS_BLOCKING_RATE_3G': np.float16,
-                     'RAB_PS_DROP_RATE_3G': np.float16,
-                     'RBU_AVAIL_DL': np.float16,
-                     'RBU_AVAIL_DL_LTE': np.float16,
-                     'RBU_AVAIL_UL': np.float16,
-                     'RBU_OTHER_DL': np.float16,
-                     'RBU_OTHER_UL': np.float16,
-                     'RBU_OWN_DL': np.float16,
-                     'RBU_OWN_UL': np.float16,
-                     'RRC_BLOCKING_RATE_3G': np.float16,
-                     'RRC_BLOCKING_RATE_LTE': np.float16,
-                     'RTWP_3G': np.float16,
-                     'SHO_FACTOR': np.float16,
-                     'TBF_DROP_RATE_2G': np.float16,
-                     'TCH_DROP_RATE_2G': np.float16,
-                     'UTIL_BRD_CPU_3G': np.float16,
-                     'UTIL_CE_DL_3G': np.float16,
-                     'UTIL_CE_HW_DL_3G': np.float16,
-                     'UTIL_CE_UL_3G': np.float16,
-                     'UTIL_SUBUNITS_3G': np.float16,
-                     'UL_VOLUME_LTE': np.float16,
-                     'DL_VOLUME_LTE': np.float16,
-                     'TOTAL_DL_VOLUME_3G': np.float16,
-                     'TOTAL_UL_VOLUME_3G': np.float16
-                     })
+        df = pd.read_feather(os.path.join(CACHE_DIR, 'bs_avg_kpi.feather'))
+
+        df[df.select_dtypes(include=[np.float32]).columns] = \
+            df[df.select_dtypes(include=[np.float32]).columns].astype(np.float16)
     else:
         df = pd.read_csv(os.path.join(BS_DIR, 'bs_avg_kpi.csv'),
                          delimiter=';',
@@ -290,7 +246,7 @@ def load_avg_kpi():
                              'TOTAL_DL_VOLUME_3G': np.float16,
                              'TOTAL_UL_VOLUME_3G': np.float16
                          })
-        df['T_DATE'] = pd.to_datetime(df['T_DATE'] + '.2002',
+        df['T_DATE'] = pd.to_datetime(df['T_DATE'] + '.' + YEAR,
                                       dayfirst=True,
                                       format='%d.%m.%y',
                                       infer_datetime_format=True,
@@ -299,99 +255,22 @@ def load_avg_kpi():
             .reset_index(drop=True) \
             .fillna(0.0)
 
-        df = df.astype(dtype={
-            'T_DATE': str,
-            'CELL_LAC_ID': np.uint32,
-            'CELL_AVAILABILITY_2G': np.float32,
-            'CELL_AVAILABILITY_3G': np.float32,
-            'CELL_AVAILABILITY_4G': np.float32,
-            'CSSR_2G': np.float32,
-            'CSSR_3G': np.float32,
-            'ERAB_PS_BLOCKING_RATE_LTE': np.float32,
-            'ERAB_PS_BLOCKING_RATE_PLMN_LTE': np.float32,
-            'ERAB_PS_DROP_RATE_LTE': np.float32,
-            'HSPDSCH_CODE_UTIL_3G': np.float32,
-            'NODEB_CNBAP_LOAD_HARDWARE': np.float32,
-            'PART_CQI_QPSK_LTE': np.float32,
-            'PART_MCS_QPSK_LTE': np.float32,
-            'PROC_LOAD_3G': np.float32,
-            'PSSR_2G': np.float32,
-            'PSSR_3G': np.float32,
-            'PSSR_LTE': np.float32,
-            'RAB_CS_BLOCKING_RATE_3G': np.float32,
-            'RAB_CS_DROP_RATE_3G': np.float32,
-            'RAB_PS_BLOCKING_RATE_3G': np.float32,
-            'RAB_PS_DROP_RATE_3G': np.float32,
-            'RBU_AVAIL_DL': np.float32,
-            'RBU_AVAIL_DL_LTE': np.float32,
-            'RBU_AVAIL_UL': np.float32,
-            'RBU_OTHER_DL': np.float32,
-            'RBU_OTHER_UL': np.float32,
-            'RBU_OWN_DL': np.float32,
-            'RBU_OWN_UL': np.float32,
-            'RRC_BLOCKING_RATE_3G': np.float32,
-            'RRC_BLOCKING_RATE_LTE': np.float32,
-            'RTWP_3G': np.float32,
-            'SHO_FACTOR': np.float32,
-            'TBF_DROP_RATE_2G': np.float32,
-            'TCH_DROP_RATE_2G': np.float32,
-            'UTIL_BRD_CPU_3G': np.float32,
-            'UTIL_CE_DL_3G': np.float32,
-            'UTIL_CE_HW_DL_3G': np.float32,
-            'UTIL_CE_UL_3G': np.float32,
-            'UTIL_SUBUNITS_3G': np.float32,
-            'UL_VOLUME_LTE': np.float32,
-            'DL_VOLUME_LTE': np.float32,
-            'TOTAL_DL_VOLUME_3G': np.float32,
-            'TOTAL_UL_VOLUME_3G': np.float32
-        })
+        df[df.select_dtypes(include=[np.float16]).columns] = \
+            df[df.select_dtypes(include=[np.float16]).columns].astype(np.float32)
+        df['T_DATE'] = df['T_DATE'].astype(str)
 
         df.to_feather(os.path.join(CACHE_DIR, 'bs_avg_kpi.feather'))
 
-    df['T_DATE'] = df['T_DATE'] - pd.DateOffset(months=2)
+    # df['T_DATE'] = df['T_DATE'] - pd.DateOffset(months=2)
     return df
 
 
 def load_chnn_kpi():
     if os.path.isfile(os.path.join(CACHE_DIR, 'bs_chnn_kpi.feather')):
-        df = pd.read_feather(os.path.join(CACHE_DIR, 'bs_chnn_kpi.feather')) \
-            .astype(dtype=
-                    {'T_DATE': str,
-                     'CELL_LAC_ID': np.uint32,
-                     'AVEUSERNUMBER': np.float16,
-                     'AVEUSERNUMBER_PLMN': np.float16,
-                     'AVR_DL_HSPA_USER_3G': np.float16,
-                     'AVR_DL_R99_USER_3G': np.float16,
-                     'AVR_DL_USER_3G': np.float16,
-                     'AVR_DL_USER_LTE': np.float16,
-                     'AVR_TX_POWER_3G': np.float16,
-                     'AVR_UL_HSPA_USER': np.float16,
-                     'AVR_UL_R99_USER': np.float16,
-                     'AVR_UL_USER_3G': np.float16,
-                     'AVR_UL_USER_LTE': np.float16,
-                     'DL_AVR_THROUGHPUT_3G': np.float16,
-                     'DL_AVR_THROUGHPUT_LTE': np.float16,
-                     'DL_AVR_THROUGHPUT_R99': np.float16,
-                     'DL_MEAN_USER_THROUGHPUT_LTE': np.float16,
-                     'DL_MEAN_USER_THROUGHPUT_DL_2G': np.float16,
-                     'DL_MEAN_USER_THROUGHPUT_HSPA3G': np.float16,
-                     'DL_MEAN_USER_THROUGHPUT_PLTE': np.float16,
-                     'DL_MEAN_USER_THROUGHPUT_REL93G': np.float16,
-                     'HSDPA_USERS_3G': np.float16,
-                     'HSUPA_USERS_3G': np.float16,
-                     'RBU_USED_DL': np.float16,
-                     'RBU_USED_UL': np.float16,
-                     'RELATIVE_RBU_USED_DL': np.float16,
-                     'RELATIVE_RBU_USED_UL': np.float16,
-                     'RELATIVE_TX_POWER_3G': np.float16,
-                     'UL_AVR_THROUGHPUT_3G': np.float16,
-                     'UL_AVR_THROUGHPUT_LTE': np.float16,
-                     'UL_AVR_THROUGHPUT_R99': np.float16,
-                     'UL_MEAN_USER_THROUGHPUT_LTE': np.float16,
-                     'UL_MEAN_USER_THROUGHPUT_HS3G': np.float16,
-                     'UL_MEAN_USER_THROUGHPUT_PLTE': np.float16,
-                     'UL_MEAN_USER_THROUGHPUT_REL93G': np.float16,
-                     })
+        df = pd.read_feather(os.path.join(CACHE_DIR, 'bs_chnn_kpi.feather'))
+
+        df[df.select_dtypes(include=[np.float32]).columns] = \
+            df[df.select_dtypes(include=[np.float32]).columns].astype(np.float16)
     else:
         df = pd.read_csv(os.path.join(BS_DIR, 'bs_chnn_kpi.csv'),
                          delimiter=';',
@@ -432,7 +311,7 @@ def load_chnn_kpi():
                                 'UL_MEAN_USER_THROUGHPUT_PLTE': np.float16,
                                 'UL_MEAN_USER_THROUGHPUT_REL93G': np.float16,
                                 })
-        df['T_DATE'] = pd.to_datetime(df['T_DATE'] + '.2002',
+        df['T_DATE'] = pd.to_datetime(df['T_DATE'] + '.' + YEAR,
                                       dayfirst=True,
                                       format='%d.%m.%y',
                                       infer_datetime_format=True,
@@ -441,51 +320,40 @@ def load_chnn_kpi():
             .reset_index(drop=True) \
             .fillna(0.0)
 
-        df = df.astype(dtype={'T_DATE': str,
-                              'CELL_LAC_ID': np.uint32,
-                              'AVEUSERNUMBER': np.float32,
-                              'AVEUSERNUMBER_PLMN': np.float32,
-                              'AVR_DL_HSPA_USER_3G': np.float32,
-                              'AVR_DL_R99_USER_3G': np.float32,
-                              'AVR_DL_USER_3G': np.float32,
-                              'AVR_DL_USER_LTE': np.float32,
-                              'AVR_TX_POWER_3G': np.float32,
-                              'AVR_UL_HSPA_USER': np.float32,
-                              'AVR_UL_R99_USER': np.float32,
-                              'AVR_UL_USER_3G': np.float32,
-                              'AVR_UL_USER_LTE': np.float32,
-                              'DL_AVR_THROUGHPUT_3G': np.float32,
-                              'DL_AVR_THROUGHPUT_LTE': np.float32,
-                              'DL_AVR_THROUGHPUT_R99': np.float32,
-                              'DL_MEAN_USER_THROUGHPUT_LTE': np.float32,
-                              'DL_MEAN_USER_THROUGHPUT_DL_2G': np.float32,
-                              'DL_MEAN_USER_THROUGHPUT_HSPA3G': np.float32,
-                              'DL_MEAN_USER_THROUGHPUT_PLTE': np.float32,
-                              'DL_MEAN_USER_THROUGHPUT_REL93G': np.float32,
-                              'HSDPA_USERS_3G': np.float32,
-                              'HSUPA_USERS_3G': np.float32,
-                              'RBU_USED_DL': np.float32,
-                              'RBU_USED_UL': np.float32,
-                              'RELATIVE_RBU_USED_DL': np.float32,
-                              'RELATIVE_RBU_USED_UL': np.float32,
-                              'RELATIVE_TX_POWER_3G': np.float32,
-                              'UL_AVR_THROUGHPUT_3G': np.float32,
-                              'UL_AVR_THROUGHPUT_LTE': np.float32,
-                              'UL_AVR_THROUGHPUT_R99': np.float32,
-                              'UL_MEAN_USER_THROUGHPUT_LTE': np.float32,
-                              'UL_MEAN_USER_THROUGHPUT_HS3G': np.float32,
-                              'UL_MEAN_USER_THROUGHPUT_PLTE': np.float32,
-                              'UL_MEAN_USER_THROUGHPUT_REL93G': np.float32,
-                              })
+        df[df.select_dtypes(include=[np.float16]).columns] = \
+            df[df.select_dtypes(include=[np.float16]).columns].astype(np.float32)
+        df['T_DATE'] = df['T_DATE'].astype(str)
 
         df.to_feather(os.path.join(CACHE_DIR, 'bs_chnn_kpi.feather'))
 
-    df['T_DATE'] = df['T_DATE'] - pd.DateOffset(months=2)
+    # df['T_DATE'] = df['T_DATE'] - pd.DateOffset(months=2)
     return df
 
 
 if __name__ == '__main__':
     pd.set_option('display.expand_frame_repr', False)
+
+    cons_df = load_consumption('test')
+    cons_df = cons_df[cons_df['MON'] >= '2018-03-01']
+    train_df = load_csi_test()
+    cons_df = pd.merge(cons_df, train_df[['SK_ID', 'CONTACT_DATE']], on='SK_ID', how='left')
+    cons_df = cons_df[cons_df['CONTACT_DATE'].dt.to_period('M') == cons_df['MON'].dt.to_period('M')].drop(['CONTACT_DATE'], axis=1)
+    cons_df['MON'] = (cons_df['MON'] - pd.offsets.DateOffset(months=1)).dt.to_period('M')
+    cons_df['CELL_LAC_ID'] = cons_df['CELL_LAC_ID'].astype(np.uint32)
+    cons_df['DATA_SPEED'] = cons_df['SUM_DATA_MB'] / cons_df['SUM_DATA_MIN']
+    print(cons_df.head())
+
+    chnn_df = load_chnn_kpi()
+    chnn_df['T_DATE'] = pd.to_datetime(chnn_df['T_DATE'])
+    chnn_df['MON'] = chnn_df['T_DATE'].dt.to_period('M')
+    print(chnn_df.head())
+
+    gr_chnn_df = chnn_df.groupby(by=['CELL_LAC_ID', 'MON'])
+
+
+    # chnn_df = chnn_df.groupby(by=[''])
+    # cons_df = pd.merge(cons_df, chnn_df, on=['CELL_LAC_ID', 'T_DATE'], how='left')
+    # print(cons_df.info())
 
     # train_df = load_csi_train()
     # test_df = load_csi_test()

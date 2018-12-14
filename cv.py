@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 import gc
 
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
 from skopt import BayesSearchCV
 import numpy as np
@@ -8,15 +9,18 @@ import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline, FeatureUnion
 from lightgbm import LGBMClassifier
-from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, MaxAbsScaler, KBinsDiscretizer, MinMaxScaler
 import os
 from datetime import datetime
+from copy import deepcopy
+from scipy.stats import rankdata
 
 from adversial_validation import adversial_train_test_split
-from data_loading import load_csi_test, load_csi_train, load_features
-from data_prepare import merge_features, add_weekday, add_holidays, features, categorical
+from data_loading import load_csi_test, load_csi_train, load_features, CACHE_DIR, load_consumption
+from data_prepare import features, categorical, session_kpi, \
+    merge_all, as_category
 from transformers.pandas_select import PandasSelect
 from transformers.pandas_subset import PandasSubset
 
@@ -25,222 +29,63 @@ os.environ['OMP_NUM_THREADS'] = '1'
 
 target = 'CSI'
 
-search_spaces = {
-    'subset__COM_CAT#1': [True, False],
-    # 'subset__COM_CAT#2': [True, False],
-    'subset__COM_CAT#3': [True, False],
-    'subset__BASE_TYPE': [True, False],
-    # 'subset__ACT': [True, False],
-    # 'subset__ARPU_GROUP': [True, False],
-    'subset__COM_CAT#7': [True, False],
-    # 'subset__COM_CAT#8': [True, False],
-    'subset__DEVICE_TYPE_ID': [True, False],
-    # 'subset__INTERNET_TYPE_ID': [True, False],
-    'subset__REVENUE': [True, False],
-    'subset__ITC': [True, False],
-    'subset__VAS': [True, False],
-    'subset__RENT_CHANNEL': [True, False],
-    'subset__ROAM': [True, False],
-    'subset__COST': [True, False],
-    'subset__COM_CAT#17': [True, False],
-    'subset__COM_CAT#18': [True, False],
-    'subset__COM_CAT#19': [True, False],
-    'subset__COM_CAT#20': [True, False],
-    'subset__COM_CAT#21': [True, False],
-    'subset__COM_CAT#22': [True, False],
-    # 'subset__COM_CAT#23': [True, False],
-    'subset__COM_CAT#25': [True, False],
-    'subset__COM_CAT#26': [True, False],
-    'subset__COM_CAT#27': [True, False],
-    'subset__COM_CAT#28': [True, False],
-    'subset__COM_CAT#29': [True, False],
-    # 'subset__COM_CAT#30': [True, False],
-    'subset__COM_CAT#31': [True, False],
-    # 'subset__COM_CAT#32': [True, False],
-    'subset__COM_CAT#33': [True, False],
-    # 'subset__COM_CAT#34': [True, False],
-
-    # 'subset__CONTACT_DATE_WEEKDAY': [True, False],
-
-    # 'subset__CONTACT_DATE_0_HOLIDAYS': [True, False],
-    # 'subset__CONTACT_DATE_1_HOLIDAYS': [True, False],
-    # 'subset__CONTACT_DATE_2_HOLIDAYS': [True, False],
-    # 'subset__CONTACT_DATE_3_HOLIDAYS': [True, False],
-
-    'subset__REVENUE_2m': [True, False],
-    'subset__ITC_2m': [True, False],
-    # 'subset__VAS_2m': [True, False],
-    'subset__RENT_CHANNEL_2m': [True, False],
-    'subset__ROAM_2m': [True, False],
-    'subset__COST_2m': [True, False],
-    # 'subset__COM_CAT#17_2m': [True, False],
-    'subset__COM_CAT#18_2m': [True, False],
-    'subset__COM_CAT#19_2m': [True, False],
-    'subset__COM_CAT#20_2m': [True, False],
-    'subset__COM_CAT#21_2m': [True, False],
-    'subset__COM_CAT#22_2m': [True, False],
-    'subset__COM_CAT#23_2m': [True, False],
-    'subset__COM_CAT#27_2m': [True, False],
-    'subset__COM_CAT#28_2m': [True, False],
-    'subset__COM_CAT#29_2m': [True, False],
-    'subset__COM_CAT#30_2m': [True, False],
-    'subset__COM_CAT#31_2m': [True, False],
-    # 'subset__COM_CAT#32_2m': [True, False],
-    'subset__COM_CAT#33_2m': [True, False],
-
-    'subset__REVENUE_3m': [True, False],
-    # 'subset__ITC_3m': [True, False],
-    # 'subset__VAS_3m': [True, False],
-    'subset__RENT_CHANNEL_3m': [True, False],
-    'subset__ROAM_3m': [True, False],
-    'subset__COST_3m': [True, False],
-    'subset__COM_CAT#17_3m': [True, False],
-    # 'subset__COM_CAT#18_3m': [True, False],
-    'subset__COM_CAT#19_3m': [True, False],
-    'subset__COM_CAT#20_3m': [True, False],
-    'subset__COM_CAT#21_3m': [True, False],
-    # 'subset__COM_CAT#22_3m': [True, False],
-    'subset__COM_CAT#23_3m': [True, False],
-    # 'subset__COM_CAT#27_3m': [True, False],
-    'subset__COM_CAT#28_3m': [True, False],
-    # 'subset__COM_CAT#29_3m': [True, False],
-    'subset__COM_CAT#30_3m': [True, False],
-    'subset__COM_CAT#31_3m': [True, False],
-    # 'subset__COM_CAT#32_3m': [True, False],
-    # 'subset__COM_CAT#33_3m': [True, False],
-
-    'subset__REVENUE_6m': [True, False],
-    # 'subset__ITC_6m': [True, False],
-    'subset__VAS_6m': [True, False],
-    'subset__RENT_CHANNEL_6m': [True, False],
-    'subset__ROAM_6m': [True, False],
-    'subset__COST_6m': [True, False],
-    'subset__COM_CAT#17_6m': [True, False],
-    'subset__COM_CAT#18_6m': [True, False],
-    'subset__COM_CAT#19_6m': [True, False],
-    'subset__COM_CAT#20_6m': [True, False],
-    'subset__COM_CAT#21_6m': [True, False],
-    # 'subset__COM_CAT#22_6m': [True, False],
-    # 'subset__COM_CAT#23_6m': [True, False],
-    # 'subset__COM_CAT#27_6m': [True, False],
-    # 'subset__COM_CAT#28_6m': [True, False],
-    'subset__COM_CAT#29_6m': [True, False],
-    'subset__COM_CAT#30_6m': [True, False],
-    'subset__COM_CAT#31_6m': [True, False],
-    'subset__COM_CAT#32_6m': [True, False],
-    # 'subset__COM_CAT#33_6m': [True, False],
-
-    'subset__REVENUE_diff_1m': [True, False],
-    'subset__ITC_diff_1m': [True, False],
-    'subset__VAS_diff_1m': [True, False],
-    'subset__RENT_CHANNEL_diff_1m': [True, False],
-    'subset__ROAM_diff_1m': [True, False],
-    'subset__COST_diff_1m': [True, False],
-    'subset__COM_CAT#17_diff_1m': [True, False],
-    # 'subset__COM_CAT#18_diff_1m': [True, False],
-    'subset__COM_CAT#19_diff_1m': [True, False],
-    'subset__COM_CAT#20_diff_1m': [True, False],
-    'subset__COM_CAT#21_diff_1m': [True, False],
-    'subset__COM_CAT#22_diff_1m': [True, False],
-    'subset__COM_CAT#23_diff_1m': [True, False],
-    'subset__COM_CAT#27_diff_1m': [True, False],
-    # 'subset__COM_CAT#28_diff_1m': [True, False],
-    'subset__COM_CAT#29_diff_1m': [True, False],
-    'subset__COM_CAT#30_diff_1m': [True, False],
-    'subset__COM_CAT#31_diff_1m': [True, False],
-    'subset__COM_CAT#32_diff_1m': [True, False],
-    'subset__COM_CAT#33_diff_1m': [True, False],
-
-    'subset__REVENUE_diff_2m': [True, False],
-    # 'subset__ITC_diff_2m': [True, False],
-    'subset__VAS_diff_2m': [True, False],
-    'subset__RENT_CHANNEL_diff_2m': [True, False],
-    # 'subset__ROAM_diff_2m': [True, False],
-    'subset__COST_diff_2m': [True, False],
-    'subset__COM_CAT#17_diff_2m': [True, False],
-    'subset__COM_CAT#18_diff_2m': [True, False],
-    # 'subset__COM_CAT#19_diff_2m': [True, False],
-    # 'subset__COM_CAT#20_diff_2m': [True, False],
-    # 'subset__COM_CAT#21_diff_2m': [True, False],
-    'subset__COM_CAT#22_diff_2m': [True, False],
-    'subset__COM_CAT#23_diff_2m': [True, False],
-    # 'subset__COM_CAT#27_diff_2m': [True, False],
-    # 'subset__COM_CAT#28_diff_2m': [True, False],
-    'subset__COM_CAT#29_diff_2m': [True, False],
-    # 'subset__COM_CAT#30_diff_2m': [True, False],
-    # 'subset__COM_CAT#31_diff_2m': [True, False],
-    'subset__COM_CAT#32_diff_2m': [True, False],
-    'subset__COM_CAT#33_diff_2m': [True, False],
-
-    'subset__REVENUE_diff_3m': [True, False],
-    # 'subset__ITC_diff_3m': [True, False],
-    'subset__VAS_diff_3m': [True, False],
-    'subset__RENT_CHANNEL_diff_3m': [True, False],
-    'subset__ROAM_diff_3m': [True, False],
-    'subset__COST_diff_3m': [True, False],
-    'subset__COM_CAT#17_diff_3m': [True, False],
-    # 'subset__COM_CAT#18_diff_3m': [True, False],
-    'subset__COM_CAT#19_diff_3m': [True, False],
-    # 'subset__COM_CAT#20_diff_3m': [True, False],
-    'subset__COM_CAT#21_diff_3m': [True, False],
-    'subset__COM_CAT#22_diff_3m': [True, False],
-    'subset__COM_CAT#23_diff_3m': [True, False],
-    # 'subset__COM_CAT#27_diff_3m': [True, False],
-    # 'subset__COM_CAT#28_diff_3m': [True, False],
-    # 'subset__COM_CAT#29_diff_3m': [True, False],
-    # 'subset__COM_CAT#30_diff_3m': [True, False],
-    # 'subset__COM_CAT#31_diff_3m': [True, False],
-    'subset__COM_CAT#32_diff_3m': [True, False],
-    'subset__COM_CAT#33_diff_3m': [True, False],
-
-    # 'estimator__C': (0.01, 1.0, 'log-uniform'),
-
-    # 'lgb__num_leaves': (3, 21),
-    # # 'lgb__n_estimators': (1, 100),
-    # 'lgb__max_depth': (2, 50),
-    # 'lgb__min_child_samples': (1, 500),
-    # 'lgb__max_bin': (10, 2000),
-    # 'lgb__subsample': (0.1, 1.0, 'uniform'),
-    # 'lgb__subsample_freq': (0, 10),
-    # 'lgb__colsample_bytree': (0.5, 1.0, 'uniform'),
-    # 'lgb__min_child_weight': (0, 50),
-    # 'lgb__subsample_for_bin': (100000, 500000),
-    # 'lgb__reg_lambda': (1e-9, 1000, 'log-uniform'),
-    # 'lgb__reg_alpha': (1e-9, 1.0, 'log-uniform'),
-}
+search_spaces = {'subset__' + f: [True] for f in features}
+# search_spaces.update({
+#     'estimator__n_estimators': (10, 100),
+#     'estimator__max_depth': (1, 10),
+# })
+# search_spaces.update({
+#     'estimator__C': (0.01, 1.0, 'log-uniform'),
+# })
+search_spaces.update({
+    'estimator__num_leaves': [15],
+    'estimator__max_depth': [-1],
+    'estimator__min_child_samples': (10, 150),
+    'estimator__max_bin': (100, 250),
+    'estimator__subsample': (0.3, 0.9),
+    'estimator__subsample_freq': [1],
+    'estimator__colsample_bytree': [1.0],
+    'estimator__min_child_weight': (50, 100),
+    'estimator__subsample_for_bin': [200000],
+    'estimator__min_split_gain': (0.2, 0.9),
+    'estimator__reg_alpha': (0.1, 0.75),
+    'estimator__reg_lambda': (0.0, 0.95),
+})
+# search_spaces.update({
+#     'estimator__num_leaves': [13],
+#     'estimator__max_depth': [-1],
+#     'estimator__min_child_samples': [16],#[56],
+#     'estimator__max_bin': [112],
+#     'estimator__subsample': [0.82],
+#     'estimator__subsample_freq': [1],
+#     'estimator__colsample_bytree': [0.98],
+#     'estimator__min_child_weight': [52],
+#     'estimator__subsample_for_bin': [200000],
+#     'estimator__min_split_gain': [0.87],
+#     'estimator__reg_alpha': [0.13],
+#     'estimator__reg_lambda': [0.14],
+# })
 
 ppl = Pipeline([
     ('subset', PandasSubset(**{k: True for k in features})),
     ('vectorizer', FeatureUnion([
-        ('REVENUE', PandasSelect('REVENUE', fillna_zero=True)),
-        ('ITC', PandasSelect('ITC', fillna_zero=True)),
-        ('VAS', PandasSelect('VAS', fillna_zero=True)),
-        ('RENT_CHANNEL', PandasSelect('RENT_CHANNEL', fillna_zero=True)),
-        ('ROAM', PandasSelect('ROAM', fillna_zero=True)),
-        ('COST', PandasSelect('COST', fillna_zero=True)),
-        ('COM_CAT#17', PandasSelect('COM_CAT#17', fillna_zero=True)),
-        ('COM_CAT#18', PandasSelect('COM_CAT#18', fillna_zero=True)),
-        ('COM_CAT#19', PandasSelect('COM_CAT#19', fillna_zero=True)),
-        ('COM_CAT#20', PandasSelect('COM_CAT#20', fillna_zero=True)),
-        ('COM_CAT#21', PandasSelect('COM_CAT#21', fillna_zero=True)),
-        ('COM_CAT#22', PandasSelect('COM_CAT#22', fillna_zero=True)),
-        # ('COM_CAT#23', PandasSelect('COM_CAT#23', fillna_zero=True)),
-        ('COM_CAT#27', PandasSelect('COM_CAT#27', fillna_zero=True)),
-        ('COM_CAT#28', PandasSelect('COM_CAT#28', fillna_zero=True)),
-        ('COM_CAT#29', PandasSelect('COM_CAT#29', fillna_zero=True)),
-        # ('COM_CAT#30', PandasSelect('COM_CAT#30', fillna_zero=True)),
-        ('COM_CAT#31', PandasSelect('COM_CAT#31', fillna_zero=True)),
-        # ('COM_CAT#32', PandasSelect('COM_CAT#32', fillna_zero=True)),
-        ('COM_CAT#33', PandasSelect('COM_CAT#33', fillna_zero=True)),
+        ('floats', Pipeline([
+            ('non-categorical', PandasSubset(**{k: True for k in features if k not in categorical})),
+            # ('scaler', MaxAbsScaler()),
+        ])),
+
+        # ('categorical', Pipeline([
+        #     ('categorical', PandasSubset(**{k: True for k in features if k in categorical})),
+        # ])),
 
         ('COM_CAT#1', Pipeline([
             ('select', PandasSelect('COM_CAT#1', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
         ])),
-        # ('COM_CAT#2', Pipeline([
-        #     ('select', PandasSelect('COM_CAT#2', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
+        ('COM_CAT#2', Pipeline([
+            ('select', PandasSelect('COM_CAT#2', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
         ('COM_CAT#3', Pipeline([
             ('select', PandasSelect('COM_CAT#3', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
@@ -249,30 +94,30 @@ ppl = Pipeline([
             ('select', PandasSelect('BASE_TYPE', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
         ])),
-        # ('ACT', Pipeline([
-        #     ('select', PandasSelect('ACT', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-        # ('ARPU_GROUP', Pipeline([
-        #     ('select', PandasSelect('ARPU_GROUP', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
+        ('ACT', Pipeline([
+            ('select', PandasSelect('ACT', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
+        ('ARPU_GROUP', Pipeline([
+            ('select', PandasSelect('ARPU_GROUP', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
         ('COM_CAT#7', Pipeline([
             ('select', PandasSelect('COM_CAT#7', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
         ])),
-        # ('COM_CAT#8', Pipeline([
-        #     ('select', PandasSelect('COM_CAT#8', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
+        ('COM_CAT#8', Pipeline([
+            ('select', PandasSelect('COM_CAT#8', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
         ('DEVICE_TYPE_ID', Pipeline([
             ('select', PandasSelect('DEVICE_TYPE_ID', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
         ])),
-        # ('INTERNET_TYPE_ID', Pipeline([
-        #     ('select', PandasSelect('INTERNET_TYPE_ID', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
+        ('INTERNET_TYPE_ID', Pipeline([
+            ('select', PandasSelect('INTERNET_TYPE_ID', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
         ('COM_CAT#25', Pipeline([
             ('select', PandasSelect('COM_CAT#25', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
@@ -281,160 +126,34 @@ ppl = Pipeline([
             ('select', PandasSelect('COM_CAT#26', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
         ])),
-        # ('COM_CAT#34', Pipeline([
-        #     ('select', PandasSelect('COM_CAT#34', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
+        ('COM_CAT#34', Pipeline([
+            ('select', PandasSelect('COM_CAT#34', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
 
-        # ('CONTACT_DATE_WEEKDAY', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_WEEKDAY', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
+        ('CONTACT_DATE_WEEKDAY', Pipeline([
+            ('select', PandasSelect('CONTACT_DATE_WEEKDAY', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
 
-        # ('CONTACT_DATE_0_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_0_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-        # ('CONTACT_DATE_1_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_1_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-        # ('CONTACT_DATE_2_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-        # ('CONTACT_DATE_3_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-
-        ('REVENUE_2m', PandasSelect('REVENUE_2m', fillna_zero=True)),
-        ('ITC_2m', PandasSelect('ITC_2m', fillna_zero=True)),
-        # ('VAS_2m', PandasSelect('VAS_2m', fillna_zero=True)),
-        ('RENT_CHANNEL_2m', PandasSelect('RENT_CHANNEL_2m', fillna_zero=True)),
-        ('ROAM_2m', PandasSelect('ROAM_2m', fillna_zero=True)),
-        ('COST_2m', PandasSelect('COST_2m', fillna_zero=True)),
-        # ('COM_CAT#17_2m', PandasSelect('COM_CAT#17_2m', fillna_zero=True)),
-        ('COM_CAT#18_2m', PandasSelect('COM_CAT#18_2m', fillna_zero=True)),
-        ('COM_CAT#19_2m', PandasSelect('COM_CAT#19_2m', fillna_zero=True)),
-        ('COM_CAT#20_2m', PandasSelect('COM_CAT#20_2m', fillna_zero=True)),
-        ('COM_CAT#21_2m', PandasSelect('COM_CAT#21_2m', fillna_zero=True)),
-        ('COM_CAT#22_2m', PandasSelect('COM_CAT#22_2m', fillna_zero=True)),
-        ('COM_CAT#23_2m', PandasSelect('COM_CAT#23_2m', fillna_zero=True)),
-        ('COM_CAT#27_2m', PandasSelect('COM_CAT#27_2m', fillna_zero=True)),
-        ('COM_CAT#28_2m', PandasSelect('COM_CAT#28_2m', fillna_zero=True)),
-        ('COM_CAT#29_2m', PandasSelect('COM_CAT#29_2m', fillna_zero=True)),
-        ('COM_CAT#30_2m', PandasSelect('COM_CAT#30_2m', fillna_zero=True)),
-        ('COM_CAT#31_2m', PandasSelect('COM_CAT#31_2m', fillna_zero=True)),
-        # ('COM_CAT#32_2m', PandasSelect('COM_CAT#32_2m', fillna_zero=True)),
-        ('COM_CAT#33_2m', PandasSelect('COM_CAT#33_2m', fillna_zero=True)),
-
-        ('REVENUE_3m', PandasSelect('REVENUE_3m', fillna_zero=True)),
-        # ('ITC_3m', PandasSelect('ITC_3m', fillna_zero=True)),
-        # ('VAS_3m', PandasSelect('VAS_3m', fillna_zero=True)),
-        ('RENT_CHANNEL_3m', PandasSelect('RENT_CHANNEL_3m', fillna_zero=True)),
-        ('ROAM_3m', PandasSelect('ROAM_3m', fillna_zero=True)),
-        ('COST_3m', PandasSelect('COST_3m', fillna_zero=True)),
-        ('COM_CAT#17_3m', PandasSelect('COM_CAT#17_3m', fillna_zero=True)),
-        # ('COM_CAT#18_3m', PandasSelect('COM_CAT#18_3m', fillna_zero=True)),
-        ('COM_CAT#19_3m', PandasSelect('COM_CAT#19_3m', fillna_zero=True)),
-        ('COM_CAT#20_3m', PandasSelect('COM_CAT#20_3m', fillna_zero=True)),
-        ('COM_CAT#21_3m', PandasSelect('COM_CAT#21_3m', fillna_zero=True)),
-        # ('COM_CAT#22_3m', PandasSelect('COM_CAT#22_3m', fillna_zero=True)),
-        ('COM_CAT#23_3m', PandasSelect('COM_CAT#23_3m', fillna_zero=True)),
-        # ('COM_CAT#27_3m', PandasSelect('COM_CAT#27_3m', fillna_zero=True)),
-        ('COM_CAT#28_3m', PandasSelect('COM_CAT#28_3m', fillna_zero=True)),
-        # ('COM_CAT#29_3m', PandasSelect('COM_CAT#29_3m', fillna_zero=True)),
-        ('COM_CAT#30_3m', PandasSelect('COM_CAT#30_3m', fillna_zero=True)),
-        ('COM_CAT#31_3m', PandasSelect('COM_CAT#31_3m', fillna_zero=True)),
-        # ('COM_CAT#32_3m', PandasSelect('COM_CAT#32_3m', fillna_zero=True)),
-        # ('COM_CAT#33_3m', PandasSelect('COM_CAT#33_3m', fillna_zero=True)),
-
-        ('REVENUE_6m', PandasSelect('REVENUE_6m', fillna_zero=True)),
-        # ('ITC_6m', PandasSelect('ITC_6m', fillna_zero=True)),
-        ('VAS_6m', PandasSelect('VAS_6m', fillna_zero=True)),
-        ('RENT_CHANNEL_6m', PandasSelect('RENT_CHANNEL_6m', fillna_zero=True)),
-        ('ROAM_6m', PandasSelect('ROAM_6m', fillna_zero=True)),
-        ('COST_6m', PandasSelect('COST_6m', fillna_zero=True)),
-        ('COM_CAT#17_6m', PandasSelect('COM_CAT#17_6m', fillna_zero=True)),
-        ('COM_CAT#18_6m', PandasSelect('COM_CAT#18_6m', fillna_zero=True)),
-        ('COM_CAT#19_6m', PandasSelect('COM_CAT#19_6m', fillna_zero=True)),
-        ('COM_CAT#20_6m', PandasSelect('COM_CAT#20_6m', fillna_zero=True)),
-        ('COM_CAT#21_6m', PandasSelect('COM_CAT#21_6m', fillna_zero=True)),
-        # ('COM_CAT#22_6m', PandasSelect('COM_CAT#22_6m', fillna_zero=True)),
-        # ('COM_CAT#23_6m', PandasSelect('COM_CAT#23_6m', fillna_zero=True)),
-        # ('COM_CAT#27_6m', PandasSelect('COM_CAT#27_6m', fillna_zero=True)),
-        # ('COM_CAT#28_6m', PandasSelect('COM_CAT#28_6m', fillna_zero=True)),
-        ('COM_CAT#29_6m', PandasSelect('COM_CAT#29_6m', fillna_zero=True)),
-        ('COM_CAT#30_6m', PandasSelect('COM_CAT#30_6m', fillna_zero=True)),
-        ('COM_CAT#31_6m', PandasSelect('COM_CAT#31_6m', fillna_zero=True)),
-        ('COM_CAT#32_6m', PandasSelect('COM_CAT#32_6m', fillna_zero=True)),
-        # ('COM_CAT#33_6m', PandasSelect('COM_CAT#33_6m', fillna_zero=True)),
-
-        ('REVENUE_diff_1m', PandasSelect('REVENUE_diff_1m', fillna_zero=True)),
-        ('ITC_diff_1m', PandasSelect('ITC_diff_1m', fillna_zero=True)),
-        ('VAS_diff_1m', PandasSelect('VAS_diff_1m', fillna_zero=True)),
-        ('RENT_CHANNEL_diff_1m', PandasSelect('RENT_CHANNEL_diff_1m', fillna_zero=True)),
-        ('ROAM_diff_1m', PandasSelect('ROAM_diff_1m', fillna_zero=True)),
-        ('COST_diff_1m', PandasSelect('COST_diff_1m', fillna_zero=True)),
-        ('COM_CAT#17_diff_1m', PandasSelect('COM_CAT#17_diff_1m', fillna_zero=True)),
-        # ('COM_CAT#18_diff_1m', PandasSelect('COM_CAT#18_diff_1m', fillna_zero=True)),
-        ('COM_CAT#19_diff_1m', PandasSelect('COM_CAT#19_diff_1m', fillna_zero=True)),
-        ('COM_CAT#20_diff_1m', PandasSelect('COM_CAT#20_diff_1m', fillna_zero=True)),
-        ('COM_CAT#21_diff_1m', PandasSelect('COM_CAT#21_diff_1m', fillna_zero=True)),
-        ('COM_CAT#22_diff_1m', PandasSelect('COM_CAT#22_diff_1m', fillna_zero=True)),
-        ('COM_CAT#23_diff_1m', PandasSelect('COM_CAT#23_diff_1m', fillna_zero=True)),
-        ('COM_CAT#27_diff_1m', PandasSelect('COM_CAT#27_diff_1m', fillna_zero=True)),
-        # ('COM_CAT#28_diff_1m', PandasSelect('COM_CAT#28_diff_1m', fillna_zero=True)),
-        ('COM_CAT#29_diff_1m', PandasSelect('COM_CAT#29_diff_1m', fillna_zero=True)),
-        ('COM_CAT#30_diff_1m', PandasSelect('COM_CAT#30_diff_1m', fillna_zero=True)),
-        ('COM_CAT#31_diff_1m', PandasSelect('COM_CAT#31_diff_1m', fillna_zero=True)),
-        ('COM_CAT#32_diff_1m', PandasSelect('COM_CAT#32_diff_1m', fillna_zero=True)),
-        ('COM_CAT#33_diff_1m', PandasSelect('COM_CAT#33_diff_1m', fillna_zero=True)),
-
-        ('REVENUE_diff_2m', PandasSelect('REVENUE_diff_2m', fillna_zero=True)),
-        # ('ITC_diff_2m', PandasSelect('ITC_diff_2m', fillna_zero=True)),
-        ('VAS_diff_2m', PandasSelect('VAS_diff_2m', fillna_zero=True)),
-        ('RENT_CHANNEL_diff_2m', PandasSelect('RENT_CHANNEL_diff_2m', fillna_zero=True)),
-        # ('ROAM_diff_2m', PandasSelect('ROAM_diff_2m', fillna_zero=True)),
-        ('COST_diff_2m', PandasSelect('COST_diff_2m', fillna_zero=True)),
-        ('COM_CAT#17_diff_2m', PandasSelect('COM_CAT#17_diff_2m', fillna_zero=True)),
-        ('COM_CAT#18_diff_2m', PandasSelect('COM_CAT#18_diff_2m', fillna_zero=True)),
-        # ('COM_CAT#19_diff_2m', PandasSelect('COM_CAT#19_diff_2m', fillna_zero=True)),
-        # ('COM_CAT#20_diff_2m', PandasSelect('COM_CAT#20_diff_2m', fillna_zero=True)),
-        # ('COM_CAT#21_diff_2m', PandasSelect('COM_CAT#21_diff_2m', fillna_zero=True)),
-        ('COM_CAT#22_diff_2m', PandasSelect('COM_CAT#22_diff_2m', fillna_zero=True)),
-        ('COM_CAT#23_diff_2m', PandasSelect('COM_CAT#23_diff_2m', fillna_zero=True)),
-        # ('COM_CAT#27_diff_2m', PandasSelect('COM_CAT#27_diff_2m', fillna_zero=True)),
-        # ('COM_CAT#28_diff_2m', PandasSelect('COM_CAT#28_diff_2m', fillna_zero=True)),
-        ('COM_CAT#29_diff_2m', PandasSelect('COM_CAT#29_diff_2m', fillna_zero=True)),
-        # ('COM_CAT#30_diff_2m', PandasSelect('COM_CAT#30_diff_2m', fillna_zero=True)),
-        # ('COM_CAT#31_diff_2m', PandasSelect('COM_CAT#31_diff_2m', fillna_zero=True)),
-        ('COM_CAT#32_diff_2m', PandasSelect('COM_CAT#32_diff_2m', fillna_zero=True)),
-        ('COM_CAT#33_diff_2m', PandasSelect('COM_CAT#33_diff_2m', fillna_zero=True)),
-
-        ('REVENUE_diff_3m', PandasSelect('REVENUE_diff_3m', fillna_zero=True)),
-        # ('ITC_diff_3m', PandasSelect('ITC_diff_3m', fillna_zero=True)),
-        ('VAS_diff_3m', PandasSelect('VAS_diff_3m', fillna_zero=True)),
-        ('RENT_CHANNEL_diff_3m', PandasSelect('RENT_CHANNEL_diff_3m', fillna_zero=True)),
-        ('ROAM_diff_3m', PandasSelect('ROAM_diff_3m', fillna_zero=True)),
-        ('COST_diff_3m', PandasSelect('COST_diff_3m', fillna_zero=True)),
-        ('COM_CAT#17_diff_3m', PandasSelect('COM_CAT#17_diff_3m', fillna_zero=True)),
-        # ('COM_CAT#18_diff_3m', PandasSelect('COM_CAT#18_diff_3m', fillna_zero=True)),
-        ('COM_CAT#19_diff_3m', PandasSelect('COM_CAT#19_diff_3m', fillna_zero=True)),
-        # ('COM_CAT#20_diff_3m', PandasSelect('COM_CAT#20_diff_3m', fillna_zero=True)),
-        ('COM_CAT#21_diff_3m', PandasSelect('COM_CAT#21_diff_3m', fillna_zero=True)),
-        ('COM_CAT#22_diff_3m', PandasSelect('COM_CAT#22_diff_3m', fillna_zero=True)),
-        ('COM_CAT#23_diff_3m', PandasSelect('COM_CAT#23_diff_3m', fillna_zero=True)),
-        # ('COM_CAT#27_diff_3m', PandasSelect('COM_CAT#27_diff_3m', fillna_zero=True)),
-        # ('COM_CAT#28_diff_3m', PandasSelect('COM_CAT#28_diff_3m', fillna_zero=True)),
-        # ('COM_CAT#29_diff_3m', PandasSelect('COM_CAT#29_diff_3m', fillna_zero=True)),
-        # ('COM_CAT#30_diff_3m', PandasSelect('COM_CAT#30_diff_3m', fillna_zero=True)),
-        # ('COM_CAT#31_diff_3m', PandasSelect('COM_CAT#31_diff_3m', fillna_zero=True)),
-        ('COM_CAT#32_diff_3m', PandasSelect('COM_CAT#32_diff_3m', fillna_zero=True)),
-        ('COM_CAT#33_diff_3m', PandasSelect('COM_CAT#33_diff_3m', fillna_zero=True)),
-
+        ('CONTACT_DATE_0_HOLIDAYS', Pipeline([
+            ('select', PandasSelect('CONTACT_DATE_0_HOLIDAYS', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
+        ('CONTACT_DATE_1_HOLIDAYS', Pipeline([
+            ('select', PandasSelect('CONTACT_DATE_1_HOLIDAYS', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
+        ('CONTACT_DATE_2_HOLIDAYS', Pipeline([
+            ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
+        ('CONTACT_DATE_3_HOLIDAYS', Pipeline([
+            ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
+            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ])),
     ])),
+    # ('poly2', PolynomialFeatures(degree=2, interaction_only=True)),
     ('estimator', LogisticRegression(random_state=42,
                                      penalty='l2',
                                      C=0.1,
@@ -442,9 +161,35 @@ ppl = Pipeline([
                                      solver='liblinear',
                                      max_iter=200,
                                      n_jobs=1)),
-    # ('estimator', SVC(gamma='auto', kernel='rbf', random_state=42, class_weight='balanced')),
     # ('estimator', ComplementNB()),
-    # ('estimator', RandomForestClassifier(n_estimators=100, n_jobs=4))
+    # ('estimator', RandomForestClassifier(n_estimators=1000,
+    #                                      n_jobs=2,
+    #                                      # max_depth=10,
+    #                                      # min_weight_fraction_leaf=0.001,
+    #                                      verbose=1,
+    #                                      random_state=42))
+    # ('estimator', LGBMClassifier(objective='binary',
+    #                              learning_rate=0.01,
+    #                              num_leaves=5,
+    #                              max_depth=-1,
+    #                              min_child_samples=20,
+    #                              max_bin=105,
+    #                              subsample=1.0,
+    #                              subsample_freq=0,
+    #                              colsample_bytree=1.0,
+    #                              min_child_weight=0.001,
+    #                              subsample_for_bin=200000,
+    #                              min_split_gain=0,
+    #                              reg_alpha=0.0,
+    #                              reg_lambda=0.0,
+    #                              n_estimators=100,
+    #                              n_jobs=2,
+    #                              is_unbalance=True,
+    #                              random_state=42,
+    #                              class_weight='balanced',
+    #                              verbose=-1,
+    #                              metric='auc'
+    #                              )),
 
 ])
 
@@ -463,19 +208,54 @@ def status_print(optim_result):
     #     bayes_cv_tuner.best_params_
     # ))
 
+    # best_estimator = bayes_cv_tuner.estimator.named_steps['estimator']
+    best_estimator = bayes_cv_tuner.estimator
+
     # Save all model results
-    # if len(all_models)%10 == 0:
-    #     clf_name = bayes_cv_tuner.estimator.named_steps['estimator'].__class__.__name__
-    #     all_models.to_csv(f"cv_results/{clf_name}_cv_{datetime.now().strftime('%d_%H_%M')}.csv")
+    if len(all_models) % 10 == 0:
+        clf_name = best_estimator.__class__.__name__
+        all_models.to_csv(f"cv_results/{clf_name}_cv_{datetime.now().strftime('%d_%H_%M')}.csv")
 
 
 if __name__ == '__main__':
-    train_df = load_csi_train()
-    train_feat_df = load_features('train')
 
-    train_df = merge_features(train_df, train_feat_df)
-    train_df = add_weekday(train_df, 'CONTACT_DATE')
-    train_df = add_holidays(train_df, 'CONTACT_DATE')
+    if os.path.isfile(os.path.join(CACHE_DIR, 'train_df.feather')):
+        train_df = pd.read_feather(os.path.join(CACHE_DIR, 'train_df.feather'))
+
+        train_df[train_df.select_dtypes(include=[np.float32]).columns] = \
+            train_df[train_df.select_dtypes(include=[np.float32]).columns].astype(np.float16)
+        gc.collect()
+    else:
+        train_df = load_csi_train()
+        train_feat_df = load_features('train')
+        train_consumtion_df = load_consumption('train')
+        train_data_avg_df = session_kpi(None, None, None, 'train_data_avg')
+        train_data_chnn_df = session_kpi(None, None, None, 'train_data_chnn')
+        train_voice_avg_df = session_kpi(None, None, None, 'train_voice_avg')
+        train_voice_chnn_df = session_kpi(None, None, None, 'train_voice_chnn')
+        gc.collect()
+
+        train_df = merge_all(train_df,
+                             train_feat_df,
+                             train_consumtion_df,
+                             train_data_avg_df, train_data_chnn_df,
+                             train_voice_avg_df, train_voice_chnn_df)
+
+        train_df[train_df.select_dtypes(include=[np.float16]).columns] = \
+            train_df[train_df.select_dtypes(include=[np.float16]).columns].astype(np.float32)
+        train_df[train_df.select_dtypes(include=['datetime64']).columns] = \
+            train_df[train_df.select_dtypes(include=['datetime64']).columns].astype(str)
+
+        train_df.to_feather(os.path.join(CACHE_DIR, 'train_df.feather'))
+
+        train_df[train_df.select_dtypes(include=[np.float32]).columns] = \
+            train_df[train_df.select_dtypes(include=[np.float32]).columns].astype(np.float16)
+        gc.collect()
+
+    train_df = as_category(train_df)
+
+    # for c in train_df.columns:
+    #     print(f"'{c}',")
     train_y = train_df['CSI']
     train_X = train_df.drop(['CSI', 'CONTACT_DATE', 'SNAP_DATE'], axis=1)
     gc.collect()
@@ -485,55 +265,82 @@ if __name__ == '__main__':
         def __init__(self, **params):
             self.pipeline = Pipeline([
                 ('subset', PandasSubset(**{k: True for k in features})),
-                ('lgb', LGBMClassifier(objective='binary',
-                                       learning_rate=0.2,
-                                       num_leaves=7,
-                                       max_depth=-1,
-                                       min_child_samples=100,
-                                       max_bin=105,
-                                       subsample=0.7,
-                                       subsample_freq=1,
-                                       colsample_bytree=0.8,
-                                       min_child_weight=0,
-                                       subsample_for_bin=200000,
-                                       min_split_gain=0,
-                                       reg_alpha=0,
-                                       reg_lambda=0,
-                                       n_estimators=500,
-                                       n_jobs=4,
-                                       is_unbalance=True,
-                                       random_state=42,
-                                       class_weight='balanced'
-                                       )),
+                ('estimator', LGBMClassifier(objective='binary',
+                                             learning_rate=0.01,
+                                             num_leaves=7,
+                                             max_depth=-1,
+                                             min_child_samples=100,
+                                             max_bin=105,
+                                             subsample=0.7,
+                                             subsample_freq=1,
+                                             colsample_bytree=0.8,
+                                             min_child_weight=0,
+                                             subsample_for_bin=200000,
+                                             min_split_gain=0,
+                                             reg_alpha=0,
+                                             reg_lambda=0,
+                                             n_estimators=500,
+                                             n_jobs=4,
+                                             is_unbalance=True,
+                                             random_state=42,
+                                             class_weight='balanced',
+                                             silent=True,
+                                             verbose=-1,
+                                             metric='auc'
+                                             )),
             ])
             self.set_params(**params)
+            self.models = []
 
         def fit(self, X, y, **fit_params):
-            Xs = self.pipeline.named_steps['subset'].fit_transform(train_X.loc[X])
+            Xs = self.pipeline.named_steps['subset'].fit_transform(X)
 
-            feats = self.pipeline.named_steps['subset'].fields()
-            cats = list(set(categorical).intersection(feats))
-            Xs_eval = self.pipeline.named_steps['subset'].transform(train_X.loc[train_X.index.difference(X)])
-            y_eval = train_y.loc[train_X.index.difference(X)]
-            self.pipeline.named_steps['lgb'].fit(Xs, y,
-                                                 eval_metric="auc",
-                                                 eval_set=(Xs_eval, y_eval),
-                                                 early_stopping_rounds=100,
-                                                 verbose=1,
-                                                 feature_name=feats,
-                                                 categorical_feature=cats,
-                                                 )
-            del Xs, y, Xs_eval, y_eval, feats, cats
+            # feats = self.pipeline.named_steps['subset'].fields()
+            # cats = list(set(categorical).intersection(feats))
+
+            self.models = []
+            for train_ix, val_ix in RepeatedStratifiedKFold(5, n_repeats=2, random_state=42).split(Xs, y):
+                model = deepcopy(self.pipeline.named_steps['estimator'].fit(Xs.iloc[train_ix], y.iloc[train_ix],
+                                                                            eval_metric="auc",
+                                                                            eval_set=(Xs.iloc[val_ix], y.iloc[val_ix]),
+                                                                            early_stopping_rounds=100,
+                                                                            verbose=False,
+                                                                            # feature_name=feats,
+                                                                            # categorical_feature=cats
+                                                                            ))
+                self.models.append(model)
+
+            # Xs_eval = self.pipeline.named_steps['subset'].transform(train_X.loc[train_X.index.difference(X.index)])
+            # y_eval = train_y.loc[train_X.index.difference(X.index)]
+            # self.pipeline.named_steps['lgb'].fit(Xs, y,
+            #                                      eval_metric="auc",
+            #                                      eval_set=(Xs_eval, y_eval),
+            #                                      early_stopping_rounds=100,
+            #                                      verbose=-1,
+            #                                      feature_name=feats,
+            #                                      categorical_feature=cats,
+            #                                      )
+            # del Xs, y, Xs_eval, y_eval, feats, cats
+            del Xs
             gc.collect()
             return self
 
         def predict(self, X):
-            Xs = self.pipeline.named_steps['subset'].transform(train_X.loc[X])
-            return self.pipeline.named_steps['lgb'].predict_proba(Xs)[:, 1]
+            Xs = self.pipeline.named_steps['subset'].transform(X)
+            y_pred = []
+            for m in self.models:
+                y_pred.append(rankdata(m.predict_proba(Xs)[:, 1]) / Xs.shape[0])
+            pred_arr = np.array(y_pred)
+            return np.mean(pred_arr, axis=0)
+
+            # return self.pipeline.named_steps['lgb'].predict_proba(Xs)[:, 1]
 
         def predict_proba(self, X):
-            Xs = self.pipeline.named_steps['subset'].transform(train_X.loc[X])
-            return self.pipeline.named_steps['lgb'].predict_proba(Xs)
+            pred_arr = self.predict(X).reshape(-1, 1)
+            pred_arr = np.hstack([1.0-pred_arr, pred_arr])
+            return pred_arr
+
+            # return self.pipeline.named_steps['lgb'].predict_proba(Xs)
 
         def get_params(self, deep=True):
             return self.pipeline.get_params(deep)
@@ -542,39 +349,92 @@ if __name__ == '__main__':
             self.pipeline.set_params(**params)
             return self
 
+        def feature_importances(self):
+            arr = np.array([m.feature_importances_ for m in self.models])
+            arr = MinMaxScaler().fit_transform (arr.T).T
+
+            return arr.mean(axis=0), np.std(arr, axis=0)
+
 
     print("Training...")
 
-    from time import time
     bayes_cv_tuner = BayesSearchCV(
-        estimator=ppl,
+        estimator=FeaturePredictor(),
         search_spaces=search_spaces,
         scoring='roc_auc',
-        cv=RepeatedStratifiedKFold(4, 10, random_state=42),
-        n_jobs=2,
+        cv=RepeatedStratifiedKFold(4, 3, random_state=42),
+        n_jobs=1,
         pre_dispatch=4,
-        n_iter=100,
+        n_iter=20,
         verbose=0,
         refit=True,
-        # random_state=42,
+        random_state=42,
     )
 
-    timer = time()
     result = bayes_cv_tuner.fit(train_X, train_y, callback=status_print)
-    print(time()-timer)
 
-    clf_name = bayes_cv_tuner.estimator.named_steps['estimator'].__class__.__name__
+    # best_estimator = bayes_cv_tuner.estimator.named_steps['estimator']
+    best_estimator = bayes_cv_tuner.best_estimator_
+
+    clf_name = best_estimator.__class__.__name__
     all_models = pd.DataFrame(bayes_cv_tuner.cv_results_)
     all_models.to_csv(f"cv_results/{clf_name}_cv_{datetime.now().strftime('%d_%H_%M')}.csv")
 
-    test_df = load_csi_test()
-    test_feat_df = load_features('test')
+    importances, std = best_estimator.feature_importances()
+    # forest = best_estimator
+    # std = np.std([tree.feature_importances_ for tree in forest.estimators_],
+    #              axis=0)
+    indices = np.argsort(importances)[::-1]
 
-    test_df = merge_features(test_df, test_feat_df)
-    test_df = add_weekday(test_df, 'CONTACT_DATE')
-    test_df = add_holidays(test_df, 'CONTACT_DATE')
+    # Print the feature ranking
+    print("Feature ranking:")
+
+    for ix, imp in enumerate(importances):
+        if imp > 0:
+            print(f"'{features[ix]}',")
+
+    for f in range(len(importances)):
+        print(f"{f+1}. feature {features[indices[f]]} ({importances[indices[f]]}, {std[indices[f]]})")
+
+
+    if os.path.isfile(os.path.join(CACHE_DIR, 'test_df.feather')):
+        test_df = pd.read_feather(os.path.join(CACHE_DIR, 'test_df.feather'))
+
+        test_df[test_df.select_dtypes(include=[np.float32]).columns] = \
+            test_df[test_df.select_dtypes(include=[np.float32]).columns].astype(np.float16)
+        gc.collect()
+    else:
+        test_df = load_csi_test()
+        test_feat_df = load_features('test')
+        train_consumtion_df = load_consumption('test')
+        test_data_avg_df = session_kpi(None, None, None, 'test_data_avg')
+        test_data_chnn_df = session_kpi(None, None, None, 'test_data_chnn')
+        test_voice_avg_df = session_kpi(None, None, None, 'test_voice_avg')
+        test_voice_chnn_df = session_kpi(None, None, None, 'test_voice_chnn')
+        gc.collect()
+
+        test_df = merge_all(test_df,
+                            test_feat_df,
+                            train_consumtion_df,
+                            test_data_avg_df, test_data_chnn_df,
+                            test_voice_avg_df, test_voice_chnn_df)
+
+        test_df[test_df.select_dtypes(include=[np.float16]).columns] = \
+            test_df[test_df.select_dtypes(include=[np.float16]).columns].astype(np.float32)
+        test_df[test_df.select_dtypes(include=['datetime64']).columns] = \
+            test_df[test_df.select_dtypes(include=['datetime64']).columns].astype(str)
+
+        test_df.to_feather(os.path.join(CACHE_DIR, 'test_df.feather'))
+
+        test_df[test_df.select_dtypes(include=[np.float32]).columns] = \
+            test_df[test_df.select_dtypes(include=[np.float32]).columns].astype(np.float16)
+        gc.collect()
+
+    test_df = as_category(test_df)
+
     test_X = test_df.drop(['CONTACT_DATE', 'SNAP_DATE'], axis=1)
 
+    adv_auc = 0
     adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X, train_y, test_X, topK=1000)
     bayes_cv_tuner._fit_best_model(adv_train_x, adv_train_y)
     adv_pred_y = bayes_cv_tuner.predict_proba(adv_test_x)[:, 1]
@@ -585,10 +445,9 @@ if __name__ == '__main__':
     test_y = bayes_cv_tuner.predict_proba(test_X)
     df = pd.DataFrame(test_y[:, 1])
     df.to_csv(f"submits/"
-              f"{bayes_cv_tuner.estimator.named_steps['estimator'].__class__.__name__}"
+              f"{best_estimator.__class__.__name__}"
               f"_{datetime.now().strftime('%d_%H_%M')}"
               f"_{bayes_cv_tuner.best_score_:0.4f}"
               f"_{adv_auc:0.4f}.csv",
               header=None,
               index=None)
-

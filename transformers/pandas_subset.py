@@ -9,7 +9,7 @@ class PandasSubset(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, df):
-        return df[self.fields()]
+        return df[list(set(self.fields()) & set(df.columns))]
 
     def fields(self):
         return [k for k, v in self.params.items() if v]
