@@ -320,7 +320,7 @@ if __name__ == '__main__':
         cv=RepeatedStratifiedKFold(5, 2, random_state=42),
         n_jobs=1,
         pre_dispatch=4,
-        n_iter=50,
+        n_iter=25,
         verbose=0,
         refit=True,
         random_state=42,
