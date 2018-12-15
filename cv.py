@@ -37,34 +37,34 @@ search_spaces = {'subset__' + f: [True] for f in features}
 # search_spaces.update({
 #     'estimator__C': (0.01, 1.0, 'log-uniform'),
 # })
-search_spaces.update({
-    'estimator__num_leaves': [13],
-    'estimator__max_depth': [-1],
-    'estimator__min_child_samples': (10, 150),
-    'estimator__max_bin': (100, 250),
-    'estimator__subsample': (0.3, 0.9),
-    'estimator__subsample_freq': [1],
-    'estimator__colsample_bytree': [1.0],
-    'estimator__min_child_weight': (50, 100),
-    'estimator__subsample_for_bin': [200000],
-    'estimator__min_split_gain': (0.2, 0.9),
-    'estimator__reg_alpha': (0.1, 0.75),
-    'estimator__reg_lambda': (0.0, 0.95),
-})
 # search_spaces.update({
-#     'estimator__num_leaves': [13],
-#     'estimator__max_depth': [-1],
-#     'estimator__min_child_samples': [16],#[56],
-#     'estimator__max_bin': [112],
-#     'estimator__subsample': [0.82],
+#     'estimator__num_leaves': [5, 17],
+#     'estimator__max_depth': [5],
+#     'estimator__min_child_samples': (10, 150),
+#     'estimator__max_bin': (100, 250),
+#     'estimator__subsample': (0.3, 0.9),
 #     'estimator__subsample_freq': [1],
-#     'estimator__colsample_bytree': [0.98],
-#     'estimator__min_child_weight': [52],
+#     'estimator__colsample_bytree': [0.8],
+#     'estimator__min_child_weight': (50, 100),
 #     'estimator__subsample_for_bin': [200000],
-#     'estimator__min_split_gain': [0.87],
-#     'estimator__reg_alpha': [0.13],
-#     'estimator__reg_lambda': [0.14],
+#     'estimator__min_split_gain': (0.2, 0.9),
+#     'estimator__reg_alpha': (0.1, 0.75),
+#     'estimator__reg_lambda': (0.0, 0.95),
 # })
+search_spaces.update({
+    'estimator__num_leaves': [16],
+    'estimator__max_depth': [-1],
+    'estimator__min_child_samples': [12],#[16],#[56],
+    'estimator__max_bin': [103],
+    'estimator__subsample': [0.31],
+    'estimator__subsample_freq': [1],
+    'estimator__colsample_bytree': [0.98],
+    'estimator__min_child_weight': [69],
+    'estimator__subsample_for_bin': [200000],
+    'estimator__min_split_gain': [0.88],
+    'estimator__reg_alpha': [0.17],
+    'estimator__reg_lambda': [0.04],
+})
 
 ppl = Pipeline([
     ('subset', PandasSubset(**{k: True for k in features})),
@@ -256,6 +256,7 @@ if __name__ == '__main__':
 
     # for c in train_df.columns:
     #     print(f"'{c}',")
+    print(train_df.info(null_counts=True))
     train_y = train_df['CSI']
     train_X = train_df.drop(['CSI', 'CONTACT_DATE', 'SNAP_DATE'], axis=1)
     gc.collect()
@@ -365,7 +366,7 @@ if __name__ == '__main__':
         cv=RepeatedStratifiedKFold(4, 3, random_state=42),
         n_jobs=1,
         pre_dispatch=4,
-        n_iter=100,
+        n_iter=1,
         verbose=0,
         refit=True,
         random_state=42,
@@ -435,7 +436,7 @@ if __name__ == '__main__':
     test_X = test_df.drop(['CONTACT_DATE', 'SNAP_DATE'], axis=1)
 
     adv_auc = 0
-    # adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X, train_y, test_X, topK=1000)
+    # adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X[features], train_y, test_X[features], topK=1000)
     # bayes_cv_tuner._fit_best_model(adv_train_x, adv_train_y)
     # adv_pred_y = bayes_cv_tuner.predict_proba(adv_test_x)[:, 1]
     # adv_auc = roc_auc_score(adv_test_y, adv_pred_y)

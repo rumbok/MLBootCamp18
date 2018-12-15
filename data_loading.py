@@ -333,22 +333,40 @@ def load_chnn_kpi():
 if __name__ == '__main__':
     pd.set_option('display.expand_frame_repr', False)
 
-    cons_df = load_consumption('test')
-    cons_df = cons_df[cons_df['MON'] >= '2018-03-01']
-    train_df = load_csi_test()
-    cons_df = pd.merge(cons_df, train_df[['SK_ID', 'CONTACT_DATE']], on='SK_ID', how='left')
-    cons_df = cons_df[cons_df['CONTACT_DATE'].dt.to_period('M') == cons_df['MON'].dt.to_period('M')].drop(['CONTACT_DATE'], axis=1)
-    cons_df['MON'] = (cons_df['MON'] - pd.offsets.DateOffset(months=1)).dt.to_period('M')
-    cons_df['CELL_LAC_ID'] = cons_df['CELL_LAC_ID'].astype(np.uint32)
-    cons_df['DATA_SPEED'] = cons_df['SUM_DATA_MB'] / cons_df['SUM_DATA_MIN']
-    print(cons_df.head())
+    train_df = load_csi_train()[['SK_ID', 'CSI']]
+    train_cons_df = load_consumption('train')
+    print(train_cons_df['CELL_LAC_ID'].value_counts())
+    test_cons_df = load_consumption('test')
+    print(test_cons_df['CELL_LAC_ID'].value_counts())
+    print(len(set(train_cons_df['CELL_LAC_ID'].unique()).intersection(test_cons_df['CELL_LAC_ID'].unique())))
 
-    chnn_df = load_chnn_kpi()
-    chnn_df['T_DATE'] = pd.to_datetime(chnn_df['T_DATE'])
-    chnn_df['MON'] = chnn_df['T_DATE'].dt.to_period('M')
-    print(chnn_df.head())
+    cell_df = load_consumption('train')[['CELL_LAC_ID', 'SK_ID']]
+    gr_cell_df = pd.merge(cell_df, train_df, on='SK_ID', how='left')[['CELL_LAC_ID', 'CSI']].groupby(by='CELL_LAC_ID')
+    mean_cell_df = gr_cell_df.mean()
+    mean_cell_df['count'] = gr_cell_df.count()
+    mean_cell_df = mean_cell_df[mean_cell_df['count'] > 10][['CSI']].rename(index=str, columns={'CSI': 'fail_rate'})
+    print(mean_cell_df.head())
 
-    gr_chnn_df = chnn_df.groupby(by=['CELL_LAC_ID', 'MON'])
+    # chnn_df = load_chnn_kpi()
+    # print(chnn_df['CELL_LAC_ID'].value_counts())
+    # avg_df = load_avg_kpi()
+    # print(avg_df['CELL_LAC_ID'].value_counts())
+
+    # cons_df = cons_df[cons_df['MON'] >= '2018-03-01']
+    # train_df = load_csi_test()
+    # cons_df = pd.merge(cons_df, train_df[['SK_ID', 'CONTACT_DATE']], on='SK_ID', how='left')
+    # cons_df = cons_df[cons_df['CONTACT_DATE'].dt.to_period('M') == cons_df['MON'].dt.to_period('M')].drop(['CONTACT_DATE'], axis=1)
+    # cons_df['MON'] = (cons_df['MON'] - pd.offsets.DateOffset(months=1)).dt.to_period('M')
+    # cons_df['CELL_LAC_ID'] = cons_df['CELL_LAC_ID'].astype(np.uint32)
+    # cons_df['DATA_SPEED'] = cons_df['SUM_DATA_MB'] / cons_df['SUM_DATA_MIN']
+    # print(cons_df.head())
+    #
+    # chnn_df = load_chnn_kpi()
+    # chnn_df['T_DATE'] = pd.to_datetime(chnn_df['T_DATE'])
+    # chnn_df['MON'] = chnn_df['T_DATE'].dt.to_period('M')
+    # print(chnn_df.head())
+    #
+    # gr_chnn_df = chnn_df.groupby(by=['CELL_LAC_ID', 'MON'])
 
 
     # chnn_df = chnn_df.groupby(by=[''])

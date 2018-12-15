@@ -106,15 +106,23 @@ def adversial_train_test_split(train_X, train_y, test_X, topK=500):
 
     df = pd.concat((train_X, test_X), sort=False).reset_index(drop=True)
     cols = list(set(df.columns).difference(df.select_dtypes(include='category').columns))
-    print(cols)
-    df[cols] = df[cols].fillna(0)
+    for c in cols:
+        df[c] = df[c].fillna(0)
+    # print(cols)
+    # df[cols] = df[cols].fillna(0)
 
     # df[df.select_dtypes(include=[np.float16]).columns] = \
     #     df[df.select_dtypes(include=[np.float16]).columns].fillna(0.0)
     # df[df.select_dtypes(include=[np.float32]).columns] = \
     #     df[df.select_dtypes(include=[np.float32]).columns].fillna(0.0)
+    # df[df.select_dtypes(include=['float32']).columns] = \
+    #     df[df.select_dtypes(include=['float32']).columns].fillna(0.0)
     # df[df.select_dtypes(include=[np.float64]).columns] = \
     #     df[df.select_dtypes(include=[np.float64]).columns].fillna(0.0)
+    # df[df.select_dtypes(include=[np.int64]).columns] = \
+    #     df[df.select_dtypes(include=[np.int64]).columns].fillna(0)
+    # df[df.select_dtypes(include=[np.uint64]).columns] = \
+    #     df[df.select_dtypes(include=[np.uint64]).columns].fillna(0)
     print(df.info())
 
     X = df.drop(['train', 'target'], axis=1)
