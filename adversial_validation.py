@@ -71,62 +71,25 @@ ppl = Pipeline([
             ('select', PandasSelect('COM_CAT#34', fillna_zero=True)),
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
         ])),
-
-        # ('CONTACT_DATE_WEEKDAY', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_WEEKDAY', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-
-        # ('CONTACT_DATE_0_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_0_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-        # ('CONTACT_DATE_1_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_1_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-        # ('CONTACT_DATE_2_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
-        # ('CONTACT_DATE_3_HOLIDAYS', Pipeline([
-        #     ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
-        #     ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        # ])),
     ])),
     ('estimator', RandomForestClassifier(n_estimators=100, n_jobs=4, random_state=42))
 ])
 
 
 def adversial_train_test_split(train_X, train_y, test_X, topK=500):
-    train_X['train'] = 1
-    train_X['target'] = train_y
-    test_X['train'] = 0
-    test_X['target'] = -1
+    train_X.loc[:, 'train'] = 1
+    train_X.loc[:, 'target'] = train_y
+    test_X.loc[:, 'train'] = 0
+    test_X.loc[:, 'target'] = -1
 
     df = pd.concat((train_X, test_X), sort=False).reset_index(drop=True)
     cols = list(set(df.columns).difference(df.select_dtypes(include='category').columns))
-    for c in cols:
-        df[c] = df[c].fillna(0)
-    # print(cols)
-    # df[cols] = df[cols].fillna(0)
-
-    # df[df.select_dtypes(include=[np.float16]).columns] = \
-    #     df[df.select_dtypes(include=[np.float16]).columns].fillna(0.0)
-    # df[df.select_dtypes(include=[np.float32]).columns] = \
-    #     df[df.select_dtypes(include=[np.float32]).columns].fillna(0.0)
-    # df[df.select_dtypes(include=['float32']).columns] = \
-    #     df[df.select_dtypes(include=['float32']).columns].fillna(0.0)
-    # df[df.select_dtypes(include=[np.float64]).columns] = \
-    #     df[df.select_dtypes(include=[np.float64]).columns].fillna(0.0)
-    # df[df.select_dtypes(include=[np.int64]).columns] = \
-    #     df[df.select_dtypes(include=[np.int64]).columns].fillna(0)
-    # df[df.select_dtypes(include=[np.uint64]).columns] = \
-    #     df[df.select_dtypes(include=[np.uint64]).columns].fillna(0)
-    print(df.info())
+    df.loc[:, cols] = df.loc[:, cols].fillna(0).replace([np.inf, -np.inf], 0)
+    for c in df.select_dtypes(include='category').columns:
+        df.loc[:, c] = df.loc[:, c].cat.add_categories('nan').fillna('nan')
 
     X = df.drop(['train', 'target'], axis=1)
-    y = df['train']
+    y = df.loc[:, 'train']
 
     # tsne = TSNE(n_components=2, init='pca', verbose=1, random_state=42)
     # Y = tsne.fit_transform(X[features])
@@ -185,4 +148,3 @@ if __name__ == '__main__':
     gc.collect()
 
     res_df = adversial_train_test_split(train_X, train_y, test_X, 1000)
-    # print(res_df)

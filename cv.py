@@ -20,7 +20,7 @@ from scipy.stats import rankdata
 from adversial_validation import adversial_train_test_split
 from data_loading import load_csi_test, load_csi_train, load_features, CACHE_DIR, load_consumption
 from data_prepare import features, categorical, session_kpi, \
-    merge_all, as_category
+    merge_all, as_category, main_cell_kpi
 from transformers.pandas_select import PandasSelect
 from transformers.pandas_subset import PandasSubset
 
@@ -37,41 +37,41 @@ search_spaces = {'subset__' + f: [True] for f in features}
 # search_spaces.update({
 #     'estimator__C': (0.01, 1.0, 'log-uniform'),
 # })
-# search_spaces.update({
-#     'estimator__num_leaves': [5, 17],
-#     'estimator__max_depth': [5],
-#     'estimator__min_child_samples': (10, 150),
-#     'estimator__max_bin': (100, 250),
-#     'estimator__subsample': (0.3, 0.9),
-#     'estimator__subsample_freq': [1],
-#     'estimator__colsample_bytree': [0.8],
-#     'estimator__min_child_weight': (50, 100),
-#     'estimator__subsample_for_bin': [200000],
-#     'estimator__min_split_gain': (0.2, 0.9),
-#     'estimator__reg_alpha': (0.1, 0.75),
-#     'estimator__reg_lambda': (0.0, 0.95),
-# })
 search_spaces.update({
-    'estimator__num_leaves': [16],
-    'estimator__max_depth': [-1],
-    'estimator__min_child_samples': [12],#[16],#[56],
-    'estimator__max_bin': [103],
-    'estimator__subsample': [0.31],
+    'estimator__num_leaves': [5, 17],
+    'estimator__max_depth': [5],
+    'estimator__min_child_samples': (10, 150),
+    'estimator__max_bin': (100, 250),
+    'estimator__subsample': (0.3, 0.9),
     'estimator__subsample_freq': [1],
-    'estimator__colsample_bytree': [0.98],
-    'estimator__min_child_weight': [69],
+    'estimator__colsample_bytree': [0.8],
+    'estimator__min_child_weight': (50, 100),
     'estimator__subsample_for_bin': [200000],
-    'estimator__min_split_gain': [0.88],
-    'estimator__reg_alpha': [0.17],
-    'estimator__reg_lambda': [0.04],
+    'estimator__min_split_gain': (0.2, 0.9),
+    'estimator__reg_alpha': (0.1, 0.75),
+    'estimator__reg_lambda': (0.0, 0.95),
 })
+# search_spaces.update({
+#     'estimator__num_leaves': [16],
+#     'estimator__max_depth': [-1],
+#     'estimator__min_child_samples': [12],#[16],#[56],
+#     'estimator__max_bin': [103],
+#     'estimator__subsample': [0.31],
+#     'estimator__subsample_freq': [1],
+#     'estimator__colsample_bytree': [0.98],
+#     'estimator__min_child_weight': [69],
+#     'estimator__subsample_for_bin': [200000],
+#     'estimator__min_split_gain': [0.88],
+#     'estimator__reg_alpha': [0.17],
+#     'estimator__reg_lambda': [0.04],
+# })
 
 ppl = Pipeline([
     ('subset', PandasSubset(**{k: True for k in features})),
     ('vectorizer', FeatureUnion([
         ('floats', Pipeline([
             ('non-categorical', PandasSubset(**{k: True for k in features if k not in categorical})),
-            # ('scaler', MaxAbsScaler()),
+            ('scaler', MaxAbsScaler()),
         ])),
 
         # ('categorical', Pipeline([
@@ -153,7 +153,6 @@ ppl = Pipeline([
             ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
         ])),
     ])),
-    # ('poly2', PolynomialFeatures(degree=2, interaction_only=True)),
     ('estimator', LogisticRegression(random_state=42,
                                      penalty='l2',
                                      C=0.1,
@@ -161,35 +160,12 @@ ppl = Pipeline([
                                      solver='liblinear',
                                      max_iter=200,
                                      n_jobs=1)),
-    # ('estimator', ComplementNB()),
     # ('estimator', RandomForestClassifier(n_estimators=1000,
     #                                      n_jobs=2,
     #                                      # max_depth=10,
     #                                      # min_weight_fraction_leaf=0.001,
     #                                      verbose=1,
     #                                      random_state=42))
-    # ('estimator', LGBMClassifier(objective='binary',
-    #                              learning_rate=0.01,
-    #                              num_leaves=5,
-    #                              max_depth=-1,
-    #                              min_child_samples=20,
-    #                              max_bin=105,
-    #                              subsample=1.0,
-    #                              subsample_freq=0,
-    #                              colsample_bytree=1.0,
-    #                              min_child_weight=0.001,
-    #                              subsample_for_bin=200000,
-    #                              min_split_gain=0,
-    #                              reg_alpha=0.0,
-    #                              reg_lambda=0.0,
-    #                              n_estimators=100,
-    #                              n_jobs=2,
-    #                              is_unbalance=True,
-    #                              random_state=42,
-    #                              class_weight='balanced',
-    #                              verbose=-1,
-    #                              metric='auc'
-    #                              )),
 
 ])
 
@@ -202,11 +178,6 @@ def status_print(optim_result):
     print(f'Best ROC-AUC: {np.round(bayes_cv_tuner.best_score_, 4),}, '
           f'current={np.round(bayes_cv_tuner.cv_results_["mean_test_score"][-1], 4)}, '
           f'std={np.round(bayes_cv_tuner.cv_results_["std_test_score"][-1], 4)}')
-    # print('Model #{}\nBest ROC-AUC: {}\nBest params: {}\n'.format(
-    #     len(all_models),
-    #     np.round(bayes_cv_tuner.best_score_, 4),
-    #     bayes_cv_tuner.best_params_
-    # ))
 
     # best_estimator = bayes_cv_tuner.estimator.named_steps['estimator']
     best_estimator = bayes_cv_tuner.estimator
@@ -235,11 +206,15 @@ if __name__ == '__main__':
         train_voice_chnn_df = session_kpi(None, None, None, 'train_voice_chnn')
         gc.collect()
 
+        train_main_cell_avg_df = main_cell_kpi(None, None, None, 'train_main_avg_kpi')
+        train_main_cell_chnn_df = main_cell_kpi(None, None, None, 'train_main_chnn_kpi')
+        gc.collect()
+
         train_df = merge_all(train_df,
                              train_feat_df,
                              train_consumtion_df,
-                             train_data_avg_df, train_data_chnn_df,
-                             train_voice_avg_df, train_voice_chnn_df)
+                             train_data_avg_df, train_data_chnn_df, train_voice_avg_df, train_voice_chnn_df,
+                             train_main_cell_avg_df, train_main_cell_chnn_df)
 
         train_df[train_df.select_dtypes(include=[np.float16]).columns] = \
             train_df[train_df.select_dtypes(include=[np.float16]).columns].astype(np.float32)
@@ -256,7 +231,6 @@ if __name__ == '__main__':
 
     # for c in train_df.columns:
     #     print(f"'{c}',")
-    print(train_df.info(null_counts=True))
     train_y = train_df['CSI']
     train_X = train_df.drop(['CSI', 'CONTACT_DATE', 'SNAP_DATE'], axis=1)
     gc.collect()
@@ -293,11 +267,8 @@ if __name__ == '__main__':
             self.set_params(**params)
             self.models = []
 
-        def fit(self, X, y, **fit_params):
+        def fit(self, X, y):
             Xs = self.pipeline.named_steps['subset'].fit_transform(X)
-
-            # feats = self.pipeline.named_steps['subset'].fields()
-            # cats = list(set(categorical).intersection(feats))
 
             self.models = []
             for train_ix, val_ix in RepeatedStratifiedKFold(5, n_repeats=2, random_state=42).split(Xs, y):
@@ -306,22 +277,9 @@ if __name__ == '__main__':
                                                                             eval_set=(Xs.iloc[val_ix], y.iloc[val_ix]),
                                                                             early_stopping_rounds=100,
                                                                             verbose=False,
-                                                                            # feature_name=feats,
-                                                                            # categorical_feature=cats
                                                                             ))
                 self.models.append(model)
 
-            # Xs_eval = self.pipeline.named_steps['subset'].transform(train_X.loc[train_X.index.difference(X.index)])
-            # y_eval = train_y.loc[train_X.index.difference(X.index)]
-            # self.pipeline.named_steps['lgb'].fit(Xs, y,
-            #                                      eval_metric="auc",
-            #                                      eval_set=(Xs_eval, y_eval),
-            #                                      early_stopping_rounds=100,
-            #                                      verbose=-1,
-            #                                      feature_name=feats,
-            #                                      categorical_feature=cats,
-            #                                      )
-            # del Xs, y, Xs_eval, y_eval, feats, cats
             del Xs
             gc.collect()
             return self
@@ -334,14 +292,10 @@ if __name__ == '__main__':
             pred_arr = np.array(y_pred)
             return np.mean(pred_arr, axis=0)
 
-            # return self.pipeline.named_steps['lgb'].predict_proba(Xs)[:, 1]
-
         def predict_proba(self, X):
             pred_arr = self.predict(X).reshape(-1, 1)
             pred_arr = np.hstack([1.0-pred_arr, pred_arr])
             return pred_arr
-
-            # return self.pipeline.named_steps['lgb'].predict_proba(Xs)
 
         def get_params(self, deep=True):
             return self.pipeline.get_params(deep)
@@ -363,10 +317,10 @@ if __name__ == '__main__':
         estimator=FeaturePredictor(),
         search_spaces=search_spaces,
         scoring='roc_auc',
-        cv=RepeatedStratifiedKFold(4, 3, random_state=42),
+        cv=RepeatedStratifiedKFold(5, 2, random_state=42),
         n_jobs=1,
         pre_dispatch=4,
-        n_iter=1,
+        n_iter=50,
         verbose=0,
         refit=True,
         random_state=42,
@@ -414,11 +368,15 @@ if __name__ == '__main__':
         test_voice_chnn_df = session_kpi(None, None, None, 'test_voice_chnn')
         gc.collect()
 
+        test_main_cell_avg_df = main_cell_kpi(None, None, None, 'test_main_avg_kpi')
+        test_main_cell_chnn_df = main_cell_kpi(None, None, None, 'test_main_chnn_kpi')
+        gc.collect()
+
         test_df = merge_all(test_df,
                             test_feat_df,
                             train_consumtion_df,
-                            test_data_avg_df, test_data_chnn_df,
-                            test_voice_avg_df, test_voice_chnn_df)
+                            test_data_avg_df, test_data_chnn_df, test_voice_avg_df, test_voice_chnn_df,
+                            test_main_cell_avg_df, test_main_cell_chnn_df)
 
         test_df[test_df.select_dtypes(include=[np.float16]).columns] = \
             test_df[test_df.select_dtypes(include=[np.float16]).columns].astype(np.float32)
@@ -436,11 +394,13 @@ if __name__ == '__main__':
     test_X = test_df.drop(['CONTACT_DATE', 'SNAP_DATE'], axis=1)
 
     adv_auc = 0
-    # adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X[features], train_y, test_X[features], topK=1000)
-    # bayes_cv_tuner._fit_best_model(adv_train_x, adv_train_y)
-    # adv_pred_y = bayes_cv_tuner.predict_proba(adv_test_x)[:, 1]
-    # adv_auc = roc_auc_score(adv_test_y, adv_pred_y)
-    # print(f'Adversial AUC = {adv_auc} by {len(adv_test_y)} samples')
+    adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X.loc[:, features], train_y,
+                                                                                  test_X.loc[:, features],
+                                                                                  topK=1000)
+    bayes_cv_tuner._fit_best_model(adv_train_x, adv_train_y)
+    adv_pred_y = bayes_cv_tuner.predict_proba(adv_test_x)[:, 1]
+    adv_auc = roc_auc_score(adv_test_y, adv_pred_y)
+    print(f'Adversial AUC = {adv_auc} by {len(adv_test_y)} samples')
 
     bayes_cv_tuner._fit_best_model(train_X, train_y)
     test_y = bayes_cv_tuner.predict_proba(test_X)
