@@ -110,6 +110,23 @@ def adversial_train_test_split(train_X, train_y, test_X, topK=500):
 
         ppl.fit(x_train, y_train)
 
+        importances = ppl.named_steps['estimator'].feature_importances_
+        std = np.std([tree.feature_importances_ for tree in ppl.named_steps['estimator'].estimators_],
+                     axis=0)
+
+        indices = np.argsort(importances)[::-1]
+
+        # Print the feature ranking
+        print("Feature ranking:")
+
+        for ix, imp in enumerate(importances):
+            if imp > 0 and ix < len(features):
+                print(f"'{features[ix]}',")
+
+        for f in range(len(importances)):
+            if indices[f] < len(features):
+                print(f"{f+1}. feature {features[indices[f]]} ({importances[indices[f]]}, {std[indices[f]]})")
+
         p = ppl.predict_proba(x_test)[:, 1]
 
         auc = roc_auc_score(y_test, p)

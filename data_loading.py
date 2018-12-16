@@ -33,7 +33,6 @@ def load_consumption(tp: str):
                                format='%d.%m.%Y',
                                infer_datetime_format=True,
                                cache=True)
-    # df['MON'] = df['MON'] - pd.DateOffset(months=2)
     return df
 
 
@@ -56,7 +55,6 @@ def load_data_session(tp: str):
                                       format='%d.%m %H:%M:%S %Y',
                                       infer_datetime_format=True,
                                       cache=True)
-    # df['START_TIME'] = df['START_TIME'] - pd.DateOffset(months=2)
     return df
 
 
@@ -79,7 +77,6 @@ def load_voice_session(tp: str):
                                       format='%d.%m %H:%M:%S %Y',
                                       infer_datetime_format=True,
                                       cache=True)
-    # df['START_TIME'] = df['START_TIME'] - pd.DateOffset(months=2)
     return df
 
 
@@ -96,7 +93,6 @@ def load_csi_train():
                                         format='%d.%m',
                                         infer_datetime_format=True,
                                         cache=True)
-    # df['CONTACT_DATE'] = df['CONTACT_DATE'].apply(lambda dt: dt.replace(month=3) if dt.month == 5 else dt.replace(month=2))
 
     return df
 
@@ -113,7 +109,6 @@ def load_csi_test():
                                         format='%d.%m.%Y',
                                         infer_datetime_format=True,
                                         cache=True)
-    # df['CONTACT_DATE'] = df['CONTACT_DATE'].apply(lambda dt: dt.replace(month=3) if dt.month == 5 else dt.replace(month=2))
 
     return df
 
@@ -171,14 +166,12 @@ def load_features(tp: str):
                                      cache=True)
     df['SNAP_DATE'] = df['SNAP_DATE']\
         .apply(lambda dt: dt.replace(year=2018) if dt.year == 2002 else dt.replace(year=2017))
-    # df['SNAP_DATE'] = df['SNAP_DATE'] - pd.DateOffset(months=2)
 
     df['COM_CAT#24'] = pd.to_datetime(df['COM_CAT#24'] + '.' + PREV_YEAR,
                                       dayfirst=True,
                                       format='%d.%m.%y',
                                       infer_datetime_format=True,
                                       cache=True)
-    # df['COM_CAT#24'] = df['COM_CAT#24'] - pd.DateOffset(months=2)
 
     df['ARPU_GROUP'] = df['ARPU_GROUP'].fillna(0).astype(np.uint8)
     df['COM_CAT#8'] = df['COM_CAT#8'].fillna(0).astype(np.uint16)
@@ -261,7 +254,6 @@ def load_avg_kpi():
 
         df.to_feather(os.path.join(CACHE_DIR, 'bs_avg_kpi.feather'))
 
-    # df['T_DATE'] = df['T_DATE'] - pd.DateOffset(months=2)
     return df
 
 
@@ -326,7 +318,6 @@ def load_chnn_kpi():
 
         df.to_feather(os.path.join(CACHE_DIR, 'bs_chnn_kpi.feather'))
 
-    # df['T_DATE'] = df['T_DATE'] - pd.DateOffset(months=2)
     return df
 
 

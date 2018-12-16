@@ -1,17 +1,15 @@
 from __future__ import unicode_literals
 import gc
 
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
 from skopt import BayesSearchCV
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
-from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.pipeline import Pipeline
 from lightgbm import LGBMClassifier
-from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import OneHotEncoder, MaxAbsScaler, KBinsDiscretizer, MinMaxScaler
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.preprocessing import MinMaxScaler
 import os
 from datetime import datetime
 from copy import deepcopy
@@ -19,9 +17,7 @@ from scipy.stats import rankdata
 
 from adversial_validation import adversial_train_test_split
 from data_loading import load_csi_test, load_csi_train, load_features, CACHE_DIR, load_consumption
-from data_prepare import features, categorical, session_kpi, \
-    merge_all, as_category, main_cell_kpi
-from transformers.pandas_select import PandasSelect
+from data_prepare import features, session_kpi, merge_all, as_category, main_cell_kpi
 from transformers.pandas_subset import PandasSubset
 
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -30,162 +26,26 @@ os.environ['OMP_NUM_THREADS'] = '1'
 target = 'CSI'
 
 search_spaces = {'subset__' + f: [True] for f in features}
-# search_spaces.update({
-#     'estimator__n_estimators': (10, 100),
-#     'estimator__max_depth': (1, 10),
-# })
-# search_spaces.update({
-#     'estimator__C': (0.01, 1.0, 'log-uniform'),
-# })
 search_spaces.update({
-    'estimator__num_leaves': [5, 17],
-    'estimator__max_depth': [5],
-    'estimator__min_child_samples': (10, 150),
-    'estimator__max_bin': (100, 250),
-    'estimator__subsample': (0.3, 0.9),
+    'estimator__num_leaves': [17],
+    'estimator__max_depth': [-1],
+    'estimator__min_child_samples': [12],#[16],#[56],
+    'estimator__max_bin': [10],
+    'estimator__subsample': [0.516],
     'estimator__subsample_freq': [1],
-    'estimator__colsample_bytree': [0.8],
-    'estimator__min_child_weight': (50, 100),
+    'estimator__colsample_bytree': [0.9],
+    'estimator__min_child_weight': [82],
     'estimator__subsample_for_bin': [200000],
-    'estimator__min_split_gain': (0.2, 0.9),
-    'estimator__reg_alpha': (0.1, 0.75),
-    'estimator__reg_lambda': (0.0, 0.95),
+    'estimator__min_split_gain': [0.9],
+    'estimator__reg_alpha': [0.1],
+    'estimator__reg_lambda': [0.99],
 })
-# search_spaces.update({
-#     'estimator__num_leaves': [16],
-#     'estimator__max_depth': [-1],
-#     'estimator__min_child_samples': [12],#[16],#[56],
-#     'estimator__max_bin': [103],
-#     'estimator__subsample': [0.31],
-#     'estimator__subsample_freq': [1],
-#     'estimator__colsample_bytree': [0.98],
-#     'estimator__min_child_weight': [69],
-#     'estimator__subsample_for_bin': [200000],
-#     'estimator__min_split_gain': [0.88],
-#     'estimator__reg_alpha': [0.17],
-#     'estimator__reg_lambda': [0.04],
-# })
-
-ppl = Pipeline([
-    ('subset', PandasSubset(**{k: True for k in features})),
-    ('vectorizer', FeatureUnion([
-        ('floats', Pipeline([
-            ('non-categorical', PandasSubset(**{k: True for k in features if k not in categorical})),
-            ('scaler', MaxAbsScaler()),
-        ])),
-
-        # ('categorical', Pipeline([
-        #     ('categorical', PandasSubset(**{k: True for k in features if k in categorical})),
-        # ])),
-
-        ('COM_CAT#1', Pipeline([
-            ('select', PandasSelect('COM_CAT#1', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('COM_CAT#2', Pipeline([
-            ('select', PandasSelect('COM_CAT#2', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('COM_CAT#3', Pipeline([
-            ('select', PandasSelect('COM_CAT#3', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('BASE_TYPE', Pipeline([
-            ('select', PandasSelect('BASE_TYPE', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('ACT', Pipeline([
-            ('select', PandasSelect('ACT', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('ARPU_GROUP', Pipeline([
-            ('select', PandasSelect('ARPU_GROUP', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('COM_CAT#7', Pipeline([
-            ('select', PandasSelect('COM_CAT#7', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('COM_CAT#8', Pipeline([
-            ('select', PandasSelect('COM_CAT#8', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('DEVICE_TYPE_ID', Pipeline([
-            ('select', PandasSelect('DEVICE_TYPE_ID', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('INTERNET_TYPE_ID', Pipeline([
-            ('select', PandasSelect('INTERNET_TYPE_ID', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('COM_CAT#25', Pipeline([
-            ('select', PandasSelect('COM_CAT#25', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('COM_CAT#26', Pipeline([
-            ('select', PandasSelect('COM_CAT#26', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('COM_CAT#34', Pipeline([
-            ('select', PandasSelect('COM_CAT#34', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-
-        ('CONTACT_DATE_WEEKDAY', Pipeline([
-            ('select', PandasSelect('CONTACT_DATE_WEEKDAY', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-
-        ('CONTACT_DATE_0_HOLIDAYS', Pipeline([
-            ('select', PandasSelect('CONTACT_DATE_0_HOLIDAYS', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('CONTACT_DATE_1_HOLIDAYS', Pipeline([
-            ('select', PandasSelect('CONTACT_DATE_1_HOLIDAYS', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('CONTACT_DATE_2_HOLIDAYS', Pipeline([
-            ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-        ('CONTACT_DATE_3_HOLIDAYS', Pipeline([
-            ('select', PandasSelect('CONTACT_DATE_2_HOLIDAYS', fillna_zero=True)),
-            ('ohe', OneHotEncoder(handle_unknown='ignore', sparse=False))
-        ])),
-    ])),
-    ('estimator', LogisticRegression(random_state=42,
-                                     penalty='l2',
-                                     C=0.1,
-                                     class_weight='balanced',
-                                     solver='liblinear',
-                                     max_iter=200,
-                                     n_jobs=1)),
-    # ('estimator', RandomForestClassifier(n_estimators=1000,
-    #                                      n_jobs=2,
-    #                                      # max_depth=10,
-    #                                      # min_weight_fraction_leaf=0.001,
-    #                                      verbose=1,
-    #                                      random_state=42))
-
-])
 
 
 def status_print(optim_result):
-    """Status callback during bayesian hyperparameter search"""
-    all_models = pd.DataFrame(bayes_cv_tuner.cv_results_)
-
-    best_params = pd.Series(bayes_cv_tuner.best_params_)
     print(f'Best ROC-AUC: {np.round(bayes_cv_tuner.best_score_, 4),}, '
           f'current={np.round(bayes_cv_tuner.cv_results_["mean_test_score"][-1], 4)}, '
           f'std={np.round(bayes_cv_tuner.cv_results_["std_test_score"][-1], 4)}')
-
-    # best_estimator = bayes_cv_tuner.estimator.named_steps['estimator']
-    best_estimator = bayes_cv_tuner.estimator
-
-    # Save all model results
-    if len(all_models) % 10 == 0:
-        clf_name = best_estimator.__class__.__name__
-        all_models.to_csv(f"cv_results/{clf_name}_cv_{datetime.now().strftime('%d_%H_%M')}.csv")
 
 
 if __name__ == '__main__':
@@ -229,8 +89,6 @@ if __name__ == '__main__':
 
     train_df = as_category(train_df)
 
-    # for c in train_df.columns:
-    #     print(f"'{c}',")
     train_y = train_df['CSI']
     train_X = train_df.drop(['CSI', 'CONTACT_DATE', 'SNAP_DATE'], axis=1)
     gc.collect()
@@ -257,7 +115,7 @@ if __name__ == '__main__':
                                              n_estimators=500,
                                              n_jobs=4,
                                              is_unbalance=True,
-                                             random_state=42,
+                                             # random_state=42,
                                              class_weight='balanced',
                                              silent=True,
                                              verbose=-1,
@@ -271,7 +129,7 @@ if __name__ == '__main__':
             Xs = self.pipeline.named_steps['subset'].fit_transform(X)
 
             self.models = []
-            for train_ix, val_ix in RepeatedStratifiedKFold(5, n_repeats=2, random_state=42).split(Xs, y):
+            for train_ix, val_ix in RepeatedStratifiedKFold(5, n_repeats=10).split(Xs, y):
                 model = deepcopy(self.pipeline.named_steps['estimator'].fit(Xs.iloc[train_ix], y.iloc[train_ix],
                                                                             eval_metric="auc",
                                                                             eval_set=(Xs.iloc[val_ix], y.iloc[val_ix]),
@@ -317,39 +175,51 @@ if __name__ == '__main__':
         estimator=FeaturePredictor(),
         search_spaces=search_spaces,
         scoring='roc_auc',
-        cv=RepeatedStratifiedKFold(5, 2, random_state=42),
+        cv=RepeatedStratifiedKFold(5, 4),
         n_jobs=1,
         pre_dispatch=4,
-        n_iter=25,
+        n_iter=1,
         verbose=0,
         refit=True,
         random_state=42,
     )
 
+    best_estimator = bayes_cv_tuner.estimator
+    clf_name = best_estimator.__class__.__name__
+
+    if clf_name != 'FeaturePredictor':
+        cols = list(set(train_X.columns).difference(train_X.select_dtypes(include='category').columns))
+        train_X.loc[:, cols] = train_X.loc[:, cols].fillna(0).replace([np.inf, -np.inf], 0)
+        for c in train_X.select_dtypes(include='category').columns:
+            train_X.loc[:, c] = train_X.loc[:, c].cat.codes
+
     result = bayes_cv_tuner.fit(train_X, train_y, callback=status_print)
 
-    # best_estimator = bayes_cv_tuner.estimator.named_steps['estimator']
     best_estimator = bayes_cv_tuner.best_estimator_
 
-    clf_name = best_estimator.__class__.__name__
     all_models = pd.DataFrame(bayes_cv_tuner.cv_results_)
     all_models.to_csv(f"cv_results/{clf_name}_cv_{datetime.now().strftime('%d_%H_%M')}.csv")
 
-    importances, std = best_estimator.feature_importances()
-    # forest = best_estimator
-    # std = np.std([tree.feature_importances_ for tree in forest.estimators_],
-    #              axis=0)
-    indices = np.argsort(importances)[::-1]
+    if clf_name=='FeaturePredictor' or clf_name=='RandomForestClassifier':
+        if clf_name == 'FeaturePredictor':
+            importances, std = best_estimator.feature_importances()
+        if clf_name == 'RandomForestClassifier':
+            importances = best_estimator.feature_importances_
+            std = np.std([tree.feature_importances_ for tree in best_estimator.estimators_],
+                         axis=0)
 
-    # Print the feature ranking
-    print("Feature ranking:")
+        indices = np.argsort(importances)[::-1]
 
-    for ix, imp in enumerate(importances):
-        if imp > 0:
-            print(f"'{features[ix]}',")
+        # Print the feature ranking
+        print("Feature ranking:")
 
-    for f in range(len(importances)):
-        print(f"{f+1}. feature {features[indices[f]]} ({importances[indices[f]]}, {std[indices[f]]})")
+        for ix, imp in enumerate(importances):
+            if imp > 0 and ix < len(features):
+                print(f"'{features[ix]}',")
+
+        for f in range(len(importances)):
+            if indices[f] < len(features):
+                print(f"{f+1}. feature {features[indices[f]]} ({importances[indices[f]]}, {std[indices[f]]})")
 
 
     if os.path.isfile(os.path.join(CACHE_DIR, 'test_df.feather')):
@@ -392,6 +262,12 @@ if __name__ == '__main__':
     test_df = as_category(test_df)
 
     test_X = test_df.drop(['CONTACT_DATE', 'SNAP_DATE'], axis=1)
+
+    if clf_name != 'FeaturePredictor':
+        cols = list(set(test_X.columns).difference(test_X.select_dtypes(include='category').columns))
+        test_X.loc[:, cols] = test_X.loc[:, cols].fillna(0).replace([np.inf, -np.inf], 0)
+        for c in test_X.select_dtypes(include='category').columns:
+            test_X.loc[:, c] = test_X.loc[:, c].cat.codes
 
     adv_auc = 0
     adv_train_x, adv_train_y, adv_test_x, adv_test_y = adversial_train_test_split(train_X.loc[:, features], train_y,
