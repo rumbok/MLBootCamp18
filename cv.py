@@ -221,6 +221,14 @@ if __name__ == '__main__':
             if indices[f] < len(features):
                 print(f"{f+1}. feature {features[indices[f]]} ({importances[indices[f]]}, {std[indices[f]]})")
 
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.title("Feature importances")
+        plt.bar(range(train_X[features].shape[1]), importances[indices],
+                color="r", yerr=std[indices], align="center")
+        plt.xticks(range(train_X[features].shape[1]), np.array(features)[indices])
+        plt.xlim([-1, train_X.shape[1]])
+        plt.show()
 
     if os.path.isfile(os.path.join(CACHE_DIR, 'test_df.feather')):
         test_df = pd.read_feather(os.path.join(CACHE_DIR, 'test_df.feather'))
