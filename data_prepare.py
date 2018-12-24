@@ -93,7 +93,7 @@ def session_kpi(csi_df, session_df, kpi_df, name: str):
         session_df = session_df[session_df['CONTACT_DATE'].dt.date - session_df['START_TIME'] <= pd.Timedelta(days=30)]
         session_df.loc[:, 'T_DATE'] = pd.to_datetime(session_df['START_TIME'])
         session_df.drop('START_TIME', inplace=True, axis=1)
-        session_df.loc[:, 'CELL_LAC_ID'] = session_df.loc['CELL_LAC_ID'].astype(np.uint32)
+        session_df.loc[:, 'CELL_LAC_ID'] = session_df.loc[:, 'CELL_LAC_ID'].astype(np.uint32)
 
         kpi_df['T_DATE'] = pd.to_datetime(kpi_df['T_DATE'])
 
